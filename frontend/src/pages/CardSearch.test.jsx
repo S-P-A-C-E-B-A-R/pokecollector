@@ -28,6 +28,14 @@ describe('CardSearch rule text request parameters', () => {
     expect(buildParams({ rule_text: 'Thunder Jab' }).rule_text).toBe('Thunder Jab')
   })
 
+  it('passes multi-word Rule text as the full value', () => {
+    expect(buildParams({ rule_text: 'draw 3 cards' }).rule_text).toBe('draw 3 cards')
+  })
+
+  it('omits whitespace-only Rule text from the request', () => {
+    expect(buildParams({ rule_text: '   ' }).rule_text).toBeUndefined()
+  })
+
   it('does not send rule_text when the Rule text field is empty', () => {
     expect(buildParams().rule_text).toBeUndefined()
   })

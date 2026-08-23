@@ -376,6 +376,7 @@ const en = {
     filterSet: 'Set',
     filterType: 'Type',
     filterEnergyType: 'Element',
+    ruleText: 'Rule text',
     allEnergyTypes: 'All Elements',
     filterCardCategory: 'Card Category',
     filterSubtype: 'Subtype',

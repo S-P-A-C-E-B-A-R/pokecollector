@@ -1,6 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, Integer, String, or_
+from sqlalchemy import case, func, cast, Integer, String, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import JSONB
 from typing import Optional, List
@@ -43,6 +43,34 @@ router = APIRouter()
 
 # Pattern: one or more letters, whitespace, one or more digits (e.g. "MEP 022", "SSP 136", "sv08 032")
 _CODE_NUMBER_RE = re.compile(r'^([A-Za-z]+\d*)\s+(\d+)$')
+
+
+def _json_array_text_matches(db: Session, column, fields: tuple[str, ...], value: str):
+    """Build a dialect-aware predicate for text fields in a JSON array."""
+    dialect = db.get_bind().dialect.name
+    if dialect == "postgresql":
+        # json_array_elements rejects JSON null and scalar JSON values.
+        array_value = case(
+            (func.json_typeof(column) == "array", column),
+            else_=func.json_build_array(),
+        )
+        elements = func.json_array_elements(array_value).table_valued("value").alias("json_element")
+        text_fields = [elements.c.value.op("->>")(field) for field in fields]
+    elif dialect == "sqlite":
+        # json_each accepts JSON null, but guard it to mirror PostgreSQL semantics.
+        array_value = case(
+            (func.json_type(column) == "array", column),
+            else_=func.json_array(),
+        )
+        elements = func.json_each(array_value).table_valued("value").alias("json_element")
+        text_fields = [func.json_extract(elements.c.value, f"$.{field}") for field in fields]
+    else:
+        # Search uses SQLite and PostgreSQL; unsupported dialects simply yield no JSON matches.
+        return False
+
+    return select(1).select_from(elements).where(
+        or_(*(accent_insensitive_contains(db, field, value) for field in text_fields))
+    ).exists()
 
 
 def _card_to_dict(card: Card, current_user_id: int | None = None) -> dict:
@@ -561,6 +589,7 @@ def search_cards(
     subtype: Optional[str] = None,
     rarity: Optional[str] = None,
     artist: Optional[str] = None,
+    rule_text: Optional[str] = None,
     hp_min: Optional[int] = None,
     hp_max: Optional[int] = None,
     dex_id: Optional[int] = Query(None, ge=1, le=1025),
@@ -639,6 +668,13 @@ def search_cards(
 
         if artist:
             query = query.filter(accent_insensitive_contains(db, Card.artist, artist))
+
+        if rule_text:
+            query = query.filter(or_(
+                accent_insensitive_contains(db, Card.card_effect, rule_text),
+                _json_array_text_matches(db, Card.attacks, ("name", "effect"), rule_text),
+                _json_array_text_matches(db, Card.abilities, ("name", "effect"), rule_text),
+            ))
 
         if hp_min is not None:
             query = query.filter(cast(Card.hp, Integer) >= hp_min)

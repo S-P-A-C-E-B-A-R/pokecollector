@@ -244,6 +244,7 @@ const en = {
     allSubtypes: 'All subtypes',
     series: 'Series',
     artist: 'Artist',
+    ruleText: 'Rule text',
     hpMin: 'HP min',
     hpMax: 'HP max',
     allSeries: 'All Series',

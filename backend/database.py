@@ -583,6 +583,15 @@ def _run_migrations(conn):
         "CREATE INDEX IF NOT EXISTS ix_decks_user_updated_at ON decks(user_id, updated_at)",
         "CREATE INDEX IF NOT EXISTS ix_deck_entries_deck_id ON deck_entries(deck_id)",
         "CREATE INDEX IF NOT EXISTS ix_deck_entries_card_id ON deck_entries(card_id)",
+        # v61: Physical deck assembly is separate from deck composition and collection ownership.
+        """CREATE TABLE IF NOT EXISTS deck_assembly_progress (
+            id SERIAL PRIMARY KEY,
+            deck_entry_id INTEGER NOT NULL UNIQUE REFERENCES deck_entries(id) ON DELETE CASCADE,
+            pulled_quantity INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            CONSTRAINT ck_deck_assembly_progress_pulled_quantity CHECK (pulled_quantity >= 0)
+        )""",
+        "CREATE INDEX IF NOT EXISTS ix_deck_assembly_progress_deck_entry_id ON deck_assembly_progress(deck_entry_id)",
     ]
     for stmt in migrations:
         try:

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Hammer, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { deleteDeck, deleteDeckEntry, getCollection, getDeck, updateDeck } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
@@ -54,7 +54,7 @@ export default function DeckEditor() {
     <div className="space-y-4 pb-6">
       <div className="flex items-center justify-between gap-2">
         <button className="btn-ghost" onClick={() => navigate('/decks')}><ArrowLeft size={16} /> {t('common.back')}</button>
-        <button className="btn-ghost text-brand-red" onClick={async () => { if (await confirm({ title: t('common.delete'), message: label('decks.deleteConfirm', { name: deck.name }) })) deleteMutation.mutate() }}><Trash2 size={15} /> {t('common.delete')}</button>
+        <div className="flex gap-1"><button className="btn-secondary" onClick={() => navigate(`/decks/${deckId}/build`)}><Hammer size={15} /> {t('decks.buildDeck')}</button><button className="btn-ghost text-brand-red" onClick={async () => { if (await confirm({ title: t('common.delete'), message: label('decks.deleteConfirm', { name: deck.name }) })) deleteMutation.mutate() }}><Trash2 size={15} /> {t('common.delete')}</button></div>
       </div>
 
       <form onSubmit={saveDetails} className="card grid gap-3 md:grid-cols-[1fr_10rem_auto] md:items-end">

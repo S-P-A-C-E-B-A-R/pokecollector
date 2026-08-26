@@ -206,6 +206,9 @@ export const deleteDeck = (id) => api.delete(`/decks/${id}`)
 export const addDeckEntry = (deckId, data) => api.post(`/decks/${deckId}/entries`, data)
 export const updateDeckEntry = (deckId, entryId, data) => api.patch(`/decks/${deckId}/entries/${entryId}`, data)
 export const deleteDeckEntry = (deckId, entryId) => api.delete(`/decks/${deckId}/entries/${entryId}`)
+export const getDeckAssemblyProgress = (deckId) => api.get(`/decks/${deckId}/assembly-progress`)
+export const updateDeckAssemblyProgress = (deckId, data) => api.put(`/decks/${deckId}/assembly-progress`, data)
+export const resetDeckAssemblyProgress = (deckId) => api.delete(`/decks/${deckId}/assembly-progress`)
 
 // Sets
 export const getSets = (params) => api.get('/sets/', { params })

@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session, joinedload
 
 from api.auth import get_current_user
 from database import get_db
-from models import Card, CollectionItem, Deck, DeckEntry, User
-from schemas import DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckResponse, DeckUpdate
+from models import Card, CollectionItem, Deck, DeckAssemblyProgress, DeckEntry, User
+from schemas import DeckAssemblyProgressResponse, DeckAssemblyProgressUpdate, DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckResponse, DeckUpdate
 
 router = APIRouter()
 
@@ -197,6 +197,45 @@ def get_deck(deck_id: int, current_user: User = Depends(get_current_user), db: S
     deck = _deck_or_404(db, deck_id, current_user.id, with_entries=True)
     owned_quantities = _owned_quantities(db, current_user.id, [entry.card_id for entry in deck.entries])
     return _deck_response(deck, owned_quantities)
+
+
+@router.get("/{deck_id}/assembly-progress", response_model=list[DeckAssemblyProgressResponse])
+def get_deck_assembly_progress(deck_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    deck = _deck_or_404(db, deck_id, current_user.id)
+    return [
+        {"entry_id": entry_id, "pulled_quantity": pulled_quantity}
+        for entry_id, pulled_quantity in db.query(DeckAssemblyProgress.deck_entry_id, DeckAssemblyProgress.pulled_quantity).join(
+            DeckEntry, DeckAssemblyProgress.deck_entry_id == DeckEntry.id
+        ).filter(DeckEntry.deck_id == deck.id).all()
+    ]
+
+
+@router.put("/{deck_id}/assembly-progress", response_model=DeckAssemblyProgressResponse)
+def update_deck_assembly_progress(deck_id: int, payload: DeckAssemblyProgressUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    deck = _deck_or_404(db, deck_id, current_user.id)
+    entry = db.query(DeckEntry).filter(DeckEntry.id == payload.entry_id, DeckEntry.deck_id == deck.id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Deck entry not found")
+    owned = _owned_quantities(db, current_user.id, [entry.card_id]).get(entry.card_id, 0)
+    pulled_quantity = min(payload.pulled_quantity, entry.required_quantity, owned)
+    progress = db.query(DeckAssemblyProgress).filter(DeckAssemblyProgress.deck_entry_id == entry.id).first()
+    if progress:
+        progress.pulled_quantity = pulled_quantity
+    else:
+        progress = DeckAssemblyProgress(deck_entry_id=entry.id, pulled_quantity=pulled_quantity)
+        db.add(progress)
+    db.commit()
+    return {"entry_id": entry.id, "pulled_quantity": pulled_quantity}
+
+
+@router.delete("/{deck_id}/assembly-progress")
+def reset_deck_assembly_progress(deck_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    deck = _deck_or_404(db, deck_id, current_user.id)
+    db.query(DeckAssemblyProgress).filter(DeckAssemblyProgress.deck_entry_id.in_(
+        db.query(DeckEntry.id).filter(DeckEntry.deck_id == deck.id)
+    )).delete(synchronize_session=False)
+    db.commit()
+    return {"message": "Deck assembly progress reset"}
 
 
 @router.patch("/{deck_id}", response_model=DeckResponse)

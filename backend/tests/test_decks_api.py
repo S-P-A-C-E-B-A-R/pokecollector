@@ -6,10 +6,10 @@ try:
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
-    from api.decks import add_deck_entry, create_deck, delete_deck, delete_deck_entry, get_deck, get_decks, update_deck, update_deck_entry
+    from api.decks import add_deck_entry, create_deck, delete_deck, delete_deck_entry, get_deck, get_deck_assembly_progress, get_decks, reset_deck_assembly_progress, update_deck, update_deck_assembly_progress, update_deck_entry
     from database import Base
-    from models import Card, CollectionItem, Deck, DeckEntry, User
-    from schemas import DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckUpdate
+    from models import Card, CollectionItem, Deck, DeckAssemblyProgress, DeckEntry, User
+    from schemas import DeckAssemblyProgressUpdate, DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckUpdate
     API_TEST_DEPS_AVAILABLE = True
 except ModuleNotFoundError:
     HTTPException = Exception
@@ -151,6 +151,32 @@ class DeckApiTests(unittest.TestCase):
         listed = get_decks(current_user=self.user, db=self.db)[0]
         self.assertEqual(listed.composition_counts, {"Pokemon": 8, "Trainer": 10, "Energy": 6, "Other": 0})
         self.assertEqual(listed.entries, [])
+
+    def test_assembly_progress_is_clamped_to_owned_copies_and_resets_without_changing_deck(self):
+        self._own(self.card.id, 3)
+        deck = self._create()
+        result = add_deck_entry(deck.id, DeckEntryCreate(card_id=self.card.id, required_quantity=4), current_user=self.user, db=self.db)
+        entry = result.entries[0]
+        saved = update_deck_assembly_progress(deck.id, DeckAssemblyProgressUpdate(entry_id=entry.id, pulled_quantity=9), current_user=self.user, db=self.db)
+        self.assertEqual(saved.pulled_quantity, 3)
+        saved = update_deck_assembly_progress(deck.id, DeckAssemblyProgressUpdate(entry_id=entry.id, pulled_quantity=0), current_user=self.user, db=self.db)
+        self.assertEqual(saved.pulled_quantity, 0)
+        self.assertEqual(get_deck_assembly_progress(deck.id, current_user=self.user, db=self.db)[0].pulled_quantity, 0)
+        reset_deck_assembly_progress(deck.id, current_user=self.user, db=self.db)
+        self.assertEqual(self.db.query(DeckAssemblyProgress).count(), 0)
+        self.assertEqual(get_deck(deck.id, current_user=self.user, db=self.db).entries[0].required_quantity, 4)
+        self.assertEqual(self.db.query(CollectionItem).filter(CollectionItem.card_id == self.card.id).first().quantity, 3)
+
+    def test_other_user_cannot_read_or_update_assembly_progress(self):
+        self._own(self.card.id, 1)
+        deck = self._create()
+        entry = add_deck_entry(deck.id, DeckEntryCreate(card_id=self.card.id), current_user=self.user, db=self.db).entries[0]
+        with self.assertRaises(HTTPException) as access:
+            get_deck_assembly_progress(deck.id, current_user=self.other_user, db=self.db)
+        self.assertEqual(access.exception.status_code, 404)
+        with self.assertRaises(HTTPException) as update_access:
+            update_deck_assembly_progress(deck.id, DeckAssemblyProgressUpdate(entry_id=entry.id, pulled_quantity=1), current_user=self.other_user, db=self.db)
+        self.assertEqual(update_access.exception.status_code, 404)
 
 
 if __name__ == "__main__":

@@ -314,10 +314,26 @@ class DeckEntry(Base):
 
     deck = relationship("Deck", back_populates="entries")
     card = relationship("Card", back_populates="deck_entries")
+    assembly_progress = relationship("DeckAssemblyProgress", back_populates="deck_entry", cascade="all, delete-orphan", uselist=False)
 
     __table_args__ = (
         CheckConstraint("required_quantity >= 1", name="ck_deck_entries_required_quantity"),
         UniqueConstraint("deck_id", "card_id", name="uq_deck_entries_deck_card"),
+    )
+
+
+class DeckAssemblyProgress(Base):
+    __tablename__ = "deck_assembly_progress"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    deck_entry_id = Column(Integer, ForeignKey("deck_entries.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    pulled_quantity = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+    deck_entry = relationship("DeckEntry", back_populates="assembly_progress")
+
+    __table_args__ = (
+        CheckConstraint("pulled_quantity >= 0", name="ck_deck_assembly_progress_pulled_quantity"),
     )
 
 

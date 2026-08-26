@@ -136,6 +136,7 @@ const trades = [{
 async function installApiFixtures(page) {
   const cardBackResponse = await page.request.get('/cardback.jpg')
   const cardBack = await cardBackResponse.body()
+  let assemblyProgress = []
 
   await page.addInitScript(user => {
     localStorage.setItem('token', 'visual-test-token')
@@ -156,6 +157,17 @@ async function installApiFixtures(page) {
 
     if (path.startsWith('/api/images/card/')) {
       await route.fulfill({ status: 200, contentType: 'image/jpeg', body: cardBack })
+      return
+    }
+
+    if (path === '/api/decks/1/assembly-progress') {
+      if (route.request().method() === 'PUT') {
+        const next = route.request().postDataJSON()
+        assemblyProgress = assemblyProgress.filter(item => item.entry_id !== next.entry_id).concat(next)
+      } else if (route.request().method() === 'DELETE') {
+        assemblyProgress = []
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(route.request().method() === 'DELETE' ? { message: 'reset' } : route.request().method() === 'PUT' ? assemblyProgress.at(-1) : assemblyProgress) })
       return
     }
 
@@ -204,6 +216,19 @@ async function expectVisibleArtwork(page) {
 
 test.beforeEach(async ({ page }) => {
   await installApiFixtures(page)
+})
+
+test('deck assembly supports desktop and mobile pulled-copy workflow', async ({ page }) => {
+  await page.goto('/decks/1/build')
+  await expect(page.getByRole('heading', { name: 'Build Deck: Visual Practice Deck' })).toBeVisible()
+  await expect(page.getByText('Missing Cards')).toBeVisible()
+  await page.getByRole('button', { name: 'Add pulled copy' }).first().click()
+  await expect(page.getByRole('progressbar', { name: 'Pulled progress' })).toHaveAttribute('aria-valuenow', '1')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole('button', { name: 'Add pulled copy' }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'Mark all owned copies pulled' }).first().click()
+  await expect(page.getByRole('button', { name: 'Remove pulled copy' }).first()).toBeVisible()
 })
 
 test('real Collection list keeps shared artwork, identity, and fallback treatment', async ({ page }) => {

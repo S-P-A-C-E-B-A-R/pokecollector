@@ -302,6 +302,16 @@ class DeckEntryUpdate(BaseModel):
     required_quantity: int = Field(ge=1)
 
 
+class DeckAssemblyProgressUpdate(BaseModel):
+    entry_id: int
+    pulled_quantity: int = Field(ge=0)
+
+
+class DeckAssemblyProgressResponse(BaseModel):
+    entry_id: int
+    pulled_quantity: int
+
+
 class DeckEntryResponse(BaseModel):
     id: int
     card_id: str

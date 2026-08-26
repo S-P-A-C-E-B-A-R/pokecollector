@@ -1,15 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { addDeckEntry, deleteDeck, deleteDeckEntry, getCollection, getDeck, updateDeck, updateDeckEntry } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import { useConfirmDialog } from '../contexts/ConfirmDialogContext'
-import { CollectionCardDisplay } from '../components/CollectionCardImage'
 import DeckCompositionBar from '../components/decks/DeckCompositionBar'
 import DeckCardGallery from '../components/decks/DeckCardGallery'
 import DeckCardViewer from '../components/decks/DeckCardViewer'
+import DeckCollectionPicker from '../components/decks/DeckCollectionPicker'
 import { deckProgress, nextDeckCardIndex, previousDeckCardIndex, sortDeckEntries } from '../utils/deckProgress'
 
 function invalidateDeck(queryClient, deckId) {
@@ -23,20 +23,10 @@ export default function DeckEditor() {
   const navigate = useNavigate()
   const confirm = useConfirmDialog()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
   const [viewerIndex, setViewerIndex] = useState(null)
   const label = (key, values) => Object.entries(values).reduce((text, [name, value]) => text.replace(`{${name}}`, value), t(key))
   const { data: deck, isLoading } = useQuery({ queryKey: ['deck', deckId], queryFn: () => getDeck(deckId).then(response => response.data) })
   const { data: collection = [] } = useQuery({ queryKey: ['deck-picker-collection'], queryFn: () => getCollection({}).then(response => response.data) })
-
-  const ownedCards = useMemo(() => Object.values(collection.reduce((cards, item) => {
-    const card = item.card || item
-    if (!card?.id) return cards
-    cards[card.id] = cards[card.id]
-      ? { ...cards[card.id], quantity: cards[card.id].quantity + Number(item.quantity || 0) }
-      : { ...item, card, quantity: Number(item.quantity || 0) }
-    return cards
-  }, {})).filter(item => item.quantity > 0 && `${item.card.name} ${item.card.id} ${item.card.set?.name || ''}`.toLowerCase().includes(search.toLowerCase())), [collection, search])
 
   const onSuccess = () => invalidateDeck(queryClient, deckId)
   const updateMutation = useMutation({ mutationFn: data => updateDeck(deckId, data), onSuccess: () => { onSuccess(); toast.success(t('decks.updated')) }, onError: error => toast.error(error.response?.data?.detail || t('decks.updateFailed')) })
@@ -73,7 +63,7 @@ export default function DeckEditor() {
         <label className="text-xs text-text-muted md:col-span-3">{t('decks.description')}<input name="description" className="input mt-1" defaultValue={deck.description || ''} /></label>
       </form>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_36rem]">
         <section className="order-2 space-y-3 lg:order-1">
           <DeckCompositionBar entries={entries} progress={progress} t={t} label={label} />
           {deck.copy_limit_warnings?.length > 0 && <div className="rounded-xl border border-yellow/30 bg-yellow/10 p-3 text-xs text-yellow">{deck.copy_limit_warnings.map(warning => <p key={warning.name} className="flex gap-2"><AlertTriangle size={14} />{label('decks.copyWarning', warning)}</p>)}</div>}
@@ -88,16 +78,8 @@ export default function DeckEditor() {
           />
         </section>
 
-        <aside className="card order-1 space-y-3 lg:order-2 lg:sticky lg:top-20 lg:self-start">
-          <div className="flex items-center gap-2"><Plus size={16} className="text-brand-red" /><h2 className="font-semibold text-text-primary">{t('decks.addCards')}</h2></div>
-          <input className="input" value={search} onChange={event => setSearch(event.target.value)} placeholder={t('decks.searchOwned')} />
-          <div className="max-h-[28rem] space-y-2 overflow-y-auto">
-            {ownedCards.map(item => <button key={item.card.id} className="flex w-full items-center gap-2 rounded-lg p-1 text-left hover:bg-bg-elevated" disabled={addMutation.isPending} onClick={() => addMutation.mutate({ card_id: item.card.id, required_quantity: 1 })}>
-              <div className="w-11 shrink-0"><CollectionCardDisplay variant="artwork" item={item} card={item.card} alt={item.card.name} /></div>
-              <span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium text-text-primary">{item.card.name}</span><span className="block truncate text-[11px] text-text-muted">{item.card.set_ref?.name || item.card.set_id || ''} {item.card.number || ''} · {item.card.lang || item.lang || ''}</span><span className="text-[11px] text-text-muted">{label('decks.owned', { count: item.quantity })}</span></span><Plus size={15} className="text-brand-red" />
-            </button>)}
-            {ownedCards.length === 0 && <p className="py-4 text-center text-xs text-text-muted">{t('decks.noOwnedCards')}</p>}
-          </div>
+        <aside className="order-1 lg:order-2 lg:sticky lg:top-20 lg:self-start">
+          <DeckCollectionPicker collection={collection} entries={entries} onAdd={cardId => addMutation.mutate({ card_id: cardId, required_quantity: 1 })} isAdding={addMutation.isPending} t={t} label={label} />
         </aside>
       </div>
 

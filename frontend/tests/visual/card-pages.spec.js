@@ -40,6 +40,14 @@ const collection = Array.from({ length: 8 }, (_, offset) => {
     added_at: `2026-07-${String(20 + index).padStart(2, '0')}T12:00:00`,
     card: card(index, index === 1 ? {
       custom_image_url: 'https://example.test/manual-card.webp',
+    } : index === 2 ? {
+      supertype: 'Trainer',
+    } : index === 3 ? {
+      supertype: 'Energy',
+    } : index === 4 ? {
+      set_id: 'second-set_en',
+      set_name: 'Second Set',
+      set_ref: { id: 'second-set_en', name: 'Second Set', abbreviation: 'SEC' },
     } : {}),
   }
 })
@@ -259,4 +267,28 @@ test('Deck editor presents a segmented gallery and keyboard-navigable viewer', a
   await expect(page.getByRole('dialog', { name: 'Visual card 1' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toBeHidden()
+})
+
+test('Deck editor filters the owned-card browser and requires an explicit add action', async ({ page }) => {
+  await page.goto('/decks/1')
+
+  await page.getByLabel('Filter by type').selectOption('Trainer')
+  await expect(page.getByRole('button', { name: 'Preview Pikachu with a deliberately long aligned card name' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Preview Visual card 1' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Preview Pikachu with a deliberately long aligned card name' }).click()
+  await expect(page.getByRole('button', { name: 'Add to deck' })).toBeVisible()
+  const addRequest = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/api/decks/1/entries'))
+  await page.getByRole('button', { name: 'Add to deck' }).click()
+  expect((await addRequest).postDataJSON()).toEqual({ card_id: 'visual-card-2', required_quantity: 1 })
+})
+
+test('Deck editor opens a selected card preview in a mobile sheet', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/decks/1')
+
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Preview Visual card 1' }).click()
+  await expect(page.getByRole('dialog', { name: 'Visual card 1' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Add to deck' })).toBeVisible()
 })

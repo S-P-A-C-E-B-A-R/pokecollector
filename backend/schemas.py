@@ -281,6 +281,57 @@ class BinderResponse(BaseModel):
         from_attributes = True
 
 
+class DeckCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    target_size: Literal[20, 40, 60] = 60
+    description: Optional[str] = None
+
+
+class DeckUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    target_size: Optional[Literal[20, 40, 60]] = None
+    description: Optional[str] = None
+
+
+class DeckEntryCreate(BaseModel):
+    card_id: str
+    required_quantity: int = Field(default=1, ge=1)
+
+
+class DeckEntryUpdate(BaseModel):
+    required_quantity: int = Field(ge=1)
+
+
+class DeckEntryResponse(BaseModel):
+    id: int
+    card_id: str
+    required_quantity: int
+    owned_quantity: int = 0
+    shortage: int = 0
+    card: Optional[CardWithSet] = None
+
+
+class DeckCopyLimitWarning(BaseModel):
+    name: str
+    quantity: int
+
+
+class DeckResponse(BaseModel):
+    id: int
+    name: str
+    target_size: Literal[20, 40, 60]
+    description: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    current_card_count: int = 0
+    remaining_to_target: int = 0
+    over_target_by: int = 0
+    missing_copy_count: int = 0
+    status: Literal["under", "complete", "over"] = "under"
+    entries: List[DeckEntryResponse] = Field(default_factory=list)
+    copy_limit_warnings: List[DeckCopyLimitWarning] = Field(default_factory=list)
+
+
 class ProductPurchaseCreate(BaseModel):
     product_name: str
     product_type: Optional[str] = None

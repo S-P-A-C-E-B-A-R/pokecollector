@@ -559,6 +559,30 @@ def _run_migrations(conn):
                     FOREIGN KEY (custom_owner_id) REFERENCES users(id) ON DELETE CASCADE;
             END IF;
         END$$""",
+        # v60: User-owned deck lists are planning-only and never reserve collection rows.
+        """CREATE TABLE IF NOT EXISTS decks (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR NOT NULL,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            target_size INTEGER NOT NULL DEFAULT 60,
+            description TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            CONSTRAINT ck_decks_target_size CHECK (target_size IN (20, 40, 60))
+        )""",
+        """CREATE TABLE IF NOT EXISTS deck_entries (
+            id SERIAL PRIMARY KEY,
+            deck_id INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
+            card_id VARCHAR NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+            required_quantity INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            CONSTRAINT ck_deck_entries_required_quantity CHECK (required_quantity >= 1),
+            CONSTRAINT uq_deck_entries_deck_card UNIQUE (deck_id, card_id)
+        )""",
+        "CREATE INDEX IF NOT EXISTS ix_decks_user_id ON decks(user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_decks_user_updated_at ON decks(user_id, updated_at)",
+        "CREATE INDEX IF NOT EXISTS ix_deck_entries_deck_id ON deck_entries(deck_id)",
+        "CREATE INDEX IF NOT EXISTS ix_deck_entries_card_id ON deck_entries(card_id)",
     ]
     for stmt in migrations:
         try:

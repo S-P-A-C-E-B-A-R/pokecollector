@@ -134,6 +134,7 @@ class Card(Base):
     wishlist_items = relationship("WishlistItem", back_populates="card", lazy="dynamic")
     price_history = relationship("PriceHistory", back_populates="card", lazy="dynamic")
     binder_cards = relationship("BinderCard", back_populates="card", lazy="dynamic")
+    deck_entries = relationship("DeckEntry", back_populates="card", lazy="dynamic")
     custom_owner = relationship("User", foreign_keys=[custom_owner_id])
 
 
@@ -280,6 +281,43 @@ class BinderCard(Base):
     __table_args__ = (
         CheckConstraint("required_quantity >= 1 AND required_quantity <= 99", name="ck_binder_card_quantity_range"),
         UniqueConstraint("binder_id", "collection_item_id", name="uq_binder_collection_item"),
+    )
+
+
+class Deck(Base):
+    __tablename__ = "decks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_size = Column(Integer, nullable=False, default=60)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+    entries = relationship("DeckEntry", back_populates="deck", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint("target_size IN (20, 40, 60)", name="ck_decks_target_size"),
+        Index("ix_decks_user_updated_at", "user_id", "updated_at"),
+    )
+
+
+class DeckEntry(Base):
+    __tablename__ = "deck_entries"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    deck_id = Column(Integer, ForeignKey("decks.id", ondelete="CASCADE"), nullable=False, index=True)
+    card_id = Column(String, ForeignKey("cards.id", ondelete="CASCADE"), nullable=False, index=True)
+    required_quantity = Column(Integer, nullable=False, default=1)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+
+    deck = relationship("Deck", back_populates="entries")
+    card = relationship("Card", back_populates="deck_entries")
+
+    __table_args__ = (
+        CheckConstraint("required_quantity >= 1", name="ck_deck_entries_required_quantity"),
+        UniqueConstraint("deck_id", "card_id", name="uq_deck_entries_deck_card"),
     )
 
 

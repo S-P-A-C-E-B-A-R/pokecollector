@@ -5,7 +5,7 @@ import { CollectionCardDisplay } from '../CollectionCardImage'
 import { aggregateDeckCollectionItems, deckPickerOptions, filterDeckCollectionCards } from '../../utils/deckCollectionPicker'
 import DeckCollectionPreview from './DeckCollectionPreview'
 
-export default function DeckCollectionPicker({ collection, entries, onAdd, isAdding, t, label }) {
+export default function DeckCollectionPicker({ collection, entries, onAdd, optimisticAddQuantities, pendingCardIds, t, label }) {
   const [search, setSearch] = useState('')
   const [type, setType] = useState('')
   const [set, setSet] = useState('')
@@ -32,7 +32,7 @@ export default function DeckCollectionPicker({ collection, entries, onAdd, isAdd
   }, [filteredCards, isDesktop, selectedId])
 
   const reset = () => { setSearch(''); setType(''); setSet(''); setLanguage('') }
-  const preview = selected && <DeckCollectionPreview item={selected} deckQuantity={quantitiesByCard[selected.card.id] || 0} onAdd={onAdd} isAdding={isAdding} t={t} label={label} compact={!isDesktop} />
+  const preview = selected && <DeckCollectionPreview item={selected} deckQuantity={optimisticAddQuantities[selected.card.id] ?? quantitiesByCard[selected.card.id] ?? 0} onAdd={onAdd} isAdding={pendingCardIds?.has(selected.card.id)} t={t} label={label} compact={!isDesktop} />
 
   return (
     <section className="card space-y-3">
@@ -46,11 +46,11 @@ export default function DeckCollectionPicker({ collection, entries, onAdd, isAdd
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,18rem)]">
         <div className="grid max-h-[30rem] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4">
           {filteredCards.map(item => {
-            const inDeck = quantitiesByCard[item.card.id] || 0
+            const inDeck = optimisticAddQuantities[item.card.id] ?? quantitiesByCard[item.card.id] ?? 0
             return <article key={item.card.id} className={`relative overflow-hidden rounded-lg border ${selected?.card.id === item.card.id ? 'border-brand-red ring-1 ring-brand-red/50' : 'border-border'} bg-bg-card`}>
               <button type="button" className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red" onClick={() => setSelectedId(item.card.id)} aria-label={label('decks.previewCard', { name: item.card.name })}><CollectionCardDisplay variant="artwork" item={item} card={item.card} alt={item.card.name} /></button>
               <span className="pointer-events-none absolute left-1 top-1 rounded-full bg-black/80 px-1.5 py-0.5 text-[10px] font-bold text-white">{label('decks.owned', { count: item.quantity })}</span>
-              <div className="flex items-center gap-1 border-t border-border p-1"><span className="min-w-0 flex-1 truncate text-[10px] text-text-secondary">{inDeck ? label('decks.inDeck', { count: inDeck }) : item.card.name}</span><button type="button" className="rounded p-1 text-brand-red hover:bg-brand-red/10" disabled={isAdding} onClick={() => onAdd(item.card.id)} aria-label={label('decks.addCard', { name: item.card.name })}><Plus size={15} /></button></div>
+              <div className="flex items-center gap-1 border-t border-border p-1"><span className="min-w-0 flex-1 truncate text-[10px] text-text-secondary">{inDeck ? label('decks.inDeck', { count: inDeck }) : item.card.name}</span><button type="button" className="rounded p-1 text-brand-red hover:bg-brand-red/10" onClick={() => onAdd(item.card.id)} aria-busy={pendingCardIds?.has(item.card.id)} aria-label={label('decks.addCard', { name: item.card.name })}><Plus size={15} /></button></div>
             </article>
           })}
           {filteredCards.length === 0 && <p className="col-span-full py-8 text-center text-xs text-text-muted">{t('decks.noOwnedCards')}</p>}

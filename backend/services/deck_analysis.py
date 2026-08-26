@@ -7,6 +7,7 @@ from statistics import median
 import re
 
 from services.deck_validation import is_basic_energy
+from services.deck_effects import analyze_deck_effects
 
 
 def _normalized(value) -> str:
@@ -139,4 +140,5 @@ def analyze_deck(deck) -> dict:
         "energy": {**energy, "types": dict(sorted(energy_types.items()))},
         "attacks": {**attacks, "fixed_damage": _weighted_stats(fixed_damage), "cost_distribution": dict(attack_costs)},
         "diversity": {"total_cards": total, "unique_printings": len(entries), "unique_card_names": len(unique_names)},
+        "effects": analyze_deck_effects(deck),
     }

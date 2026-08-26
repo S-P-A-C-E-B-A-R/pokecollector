@@ -90,6 +90,11 @@ const deck = {
     energy: { basic: 6, special: 0, other_unknown: 0, types: { Lightning: 6 } },
     attacks: { fixed_attack_count: 8, variable_attack_count: 1, non_damage_attack_count: 1, unknown_attack_count: 0, unparseable_attack_count: 0, fixed_damage: { count: 8, min: 30, max: 30, average: 30, median: 30 }, cost_distribution: { 0: 0, 1: 8, 2: 0, 3: 0, '4+': 0, unknown: 0 } },
     diversity: { total_cards: 24, unique_printings: 3, unique_card_names: 3 },
+    effects: {
+      coverage: { draw: { cards: 4, unique_sources: 1, sources: [{ card_id: 'research', name: "Professor's Research", quantity: 4 }] }, pokemon_search: { cards: 7, unique_sources: 2, sources: [{ card_id: 'ultra', name: 'Ultra Ball', quantity: 4 }, { card_id: 'nest', name: 'Nest Ball', quantity: 3 }] }, discard: { cards: 8, unique_sources: 2, sources: [{ card_id: 'ultra', name: 'Ultra Ball', quantity: 4 }, { card_id: 'research', name: "Professor's Research", quantity: 4 }] }, switching: { cards: 0, unique_sources: 0, sources: [] } },
+      outs: { draw_outs: { cards: 4, unique_sources: 1, sources: [{ card_id: 'research', name: "Professor's Research", quantity: 4 }] }, pokemon_search_outs: { cards: 7, unique_sources: 2, sources: [{ card_id: 'ultra', name: 'Ultra Ball', quantity: 4 }, { card_id: 'nest', name: 'Nest Ball', quantity: 3 }] }, energy_access_outs: { cards: 0, unique_sources: 0, sources: [] }, switching_outs: { cards: 0, unique_sources: 0, sources: [] }, recovery_outs: { cards: 0, unique_sources: 0, sources: [] } },
+      unclassified_cards: { cards: 13, unique_sources: 2 },
+    },
   },
 }
 
@@ -264,6 +269,16 @@ test('deck editor renders quantity-weighted analytics on desktop and mobile', as
   await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('tab', { name: 'Attacks' }).click()
   await expect(page.getByText('Fixed-damage attacks')).toBeVisible()
+})
+
+test('deck analytics consistency shows non-zero effects and expandable sources', async ({ page }) => {
+  await page.goto('/decks/1')
+  await page.getByRole('tab', { name: 'Analytics' }).click()
+  await page.getByRole('tab', { name: 'Consistency' }).click()
+  await expect(page.getByText('Functional Coverage')).toBeVisible()
+  await expect(page.getByText('Switching', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: /Pokemon Search.*7 cards.*2 sources/ }).first().click()
+  await expect(page.getByText('Ultra Ball')).toBeVisible()
 })
 
 test('real Collection list keeps shared artwork, identity, and fallback treatment', async ({ page }) => {

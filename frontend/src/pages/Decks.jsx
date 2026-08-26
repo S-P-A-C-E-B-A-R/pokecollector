@@ -7,6 +7,7 @@ import { createDeck, getDecks } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import { deckProgress } from '../utils/deckProgress'
 import DeckCompositionBar from '../components/decks/DeckCompositionBar'
+import DeckValidationPanel from '../components/decks/DeckValidationPanel'
 
 export default function Decks() {
   const { t } = useSettings()
@@ -47,6 +48,7 @@ export default function Decks() {
       const progress = deckProgress(deck)
       return <button key={deck.id} onClick={() => navigate(`/decks/${deck.id}`)} className="card min-h-36 text-left transition-colors hover:border-brand-red/40">
         <div className="flex items-start justify-between gap-2"><h2 className="truncate font-semibold text-text-primary">{deck.name}</h2><span className={`shrink-0 text-xs font-bold ${progress.status === 'complete' ? 'text-green' : progress.status === 'over' ? 'text-brand-red' : 'text-yellow'}`}>{progress.current}/{progress.target}</span></div>
+        <DeckValidationPanel validation={deck.validation} t={t} compact />
         {deck.description && <p className="mt-1 line-clamp-2 text-xs text-text-muted">{deck.description}</p>}
         <p className="mt-2 text-xs text-text-secondary">{progress.status === 'complete' ? t('decks.complete') : progress.status === 'over' ? label('decks.over', { count: progress.over }) : label('decks.remaining', { count: progress.remaining })}{deck.missing_copy_count > 0 && ` · ${label('decks.missingCopies', { count: deck.missing_copy_count })}`}</p>
         <div className="mt-3"><DeckCompositionBar entries={[]} compositionCounts={deck.composition_counts} progress={progress} t={t} label={label} compact /></div>

@@ -592,6 +592,8 @@ def _run_migrations(conn):
             CONSTRAINT ck_deck_assembly_progress_pulled_quantity CHECK (pulled_quantity >= 0)
         )""",
         "CREATE INDEX IF NOT EXISTS ix_deck_assembly_progress_deck_entry_id ON deck_assembly_progress(deck_entry_id)",
+        # v62: Deck format is validation metadata; legacy decks remain casual.
+        "ALTER TABLE decks ADD COLUMN IF NOT EXISTS format VARCHAR NOT NULL DEFAULT 'Casual'",
     ]
     for stmt in migrations:
         try:

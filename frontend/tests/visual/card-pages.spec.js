@@ -76,12 +76,19 @@ const deck = {
     { id: 3, card_id: 'visual-card-3', required_quantity: 6, owned_quantity: 6, shortage: 0, card: card(3, { supertype: 'Energy' }) },
   ],
   copy_limit_warnings: [{ name: 'Ultra Ball', quantity: 5 }],
+  format: 'Casual',
+  validation: {
+    valid: false,
+    errors: [{ code: 'deck_size', status: 'fail', severity: 'error', message: 'Deck contains 24 of 40 cards.', details: { current: 24, target: 40 } }, { code: 'basic_pokemon', status: 'pass', severity: 'error', message: 'Deck contains a Basic Pokemon.', details: { count: 1 } }],
+    warnings: [{ code: 'ownership', status: 'fail', severity: 'warning', message: 'Missing 1 copies from your collection.', details: { missing: 1, cards: [{ entry_id: 2, name: 'Visual card 2', missing: 1 }] } }],
+    checks: [{ code: 'deck_size', status: 'fail', severity: 'error', message: 'Deck contains 24 of 40 cards.', details: { current: 24, target: 40 } }, { code: 'basic_pokemon', status: 'pass', severity: 'error', message: 'Deck contains a Basic Pokemon.', details: { count: 1 } }, { code: 'copy_limit', status: 'fail', severity: 'error', message: 'One or more cards exceed the 4-copy limit.', details: { violations: [{ name: 'Visual card 1', quantity: 8 }] } }, { code: 'ownership', status: 'fail', severity: 'warning', message: 'Missing 1 copies from your collection.', details: { missing: 1, cards: [{ entry_id: 2, name: 'Visual card 2', missing: 1 }] } }],
+  },
 }
 
 const deckSummary = { ...deck, entries: [], copy_limit_warnings: [] }
 const deckSummaries = [
   deckSummary,
-  { ...deckSummary, id: 2, name: 'Complete Deck', current_card_count: 40, remaining_to_target: 0, status: 'complete', composition_counts: { Pokemon: 12, Trainer: 15, Energy: 13, Other: 0 } },
+  { ...deckSummary, id: 2, name: 'Complete Deck', current_card_count: 40, remaining_to_target: 0, status: 'complete', composition_counts: { Pokemon: 12, Trainer: 15, Energy: 13, Other: 0 }, validation: { valid: true, errors: [], warnings: [], checks: [] } },
   { ...deckSummary, id: 3, name: 'Over Deck', current_card_count: 41, remaining_to_target: 0, over_target_by: 1, status: 'over', composition_counts: { Pokemon: 12, Trainer: 15, Energy: 14, Other: 0 } },
   { ...deckSummary, id: 4, name: 'Large Over Deck', current_card_count: 55, remaining_to_target: 0, over_target_by: 15, status: 'over', composition_counts: { Pokemon: 26, Trainer: 15, Energy: 14, Other: 0 } },
 ]
@@ -221,6 +228,7 @@ test.beforeEach(async ({ page }) => {
 test('deck assembly supports desktop and mobile pulled-copy workflow', async ({ page }) => {
   await page.goto('/decks/1/build')
   await expect(page.getByRole('heading', { name: 'Build Deck: Visual Practice Deck' })).toBeVisible()
+  await expect(page.getByText('2 validation errors')).toBeVisible()
   await expect(page.getByText('Missing Cards')).toBeVisible()
   await page.getByRole('button', { name: 'Add pulled copy' }).first().click()
   await expect(page.getByRole('progressbar', { name: 'Pulled progress' })).toHaveAttribute('aria-valuenow', '1')
@@ -229,6 +237,13 @@ test('deck assembly supports desktop and mobile pulled-copy workflow', async ({ 
   await expect(page.getByRole('button', { name: 'Add pulled copy' }).first()).toBeVisible()
   await page.getByRole('button', { name: 'Mark all owned copies pulled' }).first().click()
   await expect(page.getByRole('button', { name: 'Remove pulled copy' }).first()).toBeVisible()
+})
+
+test('deck editor expands structured validation details', async ({ page }) => {
+  await page.goto('/decks/1')
+  await page.getByRole('button', { name: /Deck Validation/ }).click()
+  await expect(page.getByText('Visual card 1: 8')).toBeVisible()
+  await expect(page.getByText('Visual card 2: 1 Missing')).toBeVisible()
 })
 
 test('real Collection list keeps shared artwork, identity, and fallback treatment', async ({ page }) => {
@@ -314,6 +329,8 @@ test('Deck list uses the shared segmented composition summary', async ({ page })
   await expect(page.getByText('Trainer 10')).toBeVisible()
   await expect(page.getByText('Energy 6')).toBeVisible()
   await expect(page.getByText('16 remaining')).toBeVisible()
+  await expect(page.getByText('2 validation errors').first()).toBeVisible()
+  await expect(page.getByText('Valid deck')).toBeVisible()
   await expect(page.getByText('40/40')).toBeVisible()
   await expect(page.getByText('41/40')).toBeVisible()
   await expect(page.getByText('55/40')).toBeVisible()

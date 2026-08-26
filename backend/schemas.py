@@ -285,12 +285,14 @@ class DeckCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     target_size: Literal[20, 40, 60] = 60
     description: Optional[str] = None
+    format: Literal["Standard", "Expanded", "Unlimited", "Casual"] = "Casual"
 
 
 class DeckUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     target_size: Optional[Literal[20, 40, 60]] = None
     description: Optional[str] = None
+    format: Optional[Literal["Standard", "Expanded", "Unlimited", "Casual"]] = None
 
 
 class DeckEntryCreate(BaseModel):
@@ -326,11 +328,27 @@ class DeckCopyLimitWarning(BaseModel):
     quantity: int
 
 
+class DeckValidationCheck(BaseModel):
+    code: str
+    status: Literal["pass", "fail", "unavailable"]
+    severity: Literal["error", "warning", "info"]
+    message: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class DeckValidationResponse(BaseModel):
+    valid: bool
+    errors: List[DeckValidationCheck] = Field(default_factory=list)
+    warnings: List[DeckValidationCheck] = Field(default_factory=list)
+    checks: List[DeckValidationCheck] = Field(default_factory=list)
+
+
 class DeckResponse(BaseModel):
     id: int
     name: str
     target_size: Literal[20, 40, 60]
     description: Optional[str] = None
+    format: Literal["Standard", "Expanded", "Unlimited", "Casual"] = "Casual"
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     current_card_count: int = 0
@@ -341,6 +359,7 @@ class DeckResponse(BaseModel):
     composition_counts: Dict[str, int] = Field(default_factory=lambda: {"Pokemon": 0, "Trainer": 0, "Energy": 0, "Other": 0})
     entries: List[DeckEntryResponse] = Field(default_factory=list)
     copy_limit_warnings: List[DeckCopyLimitWarning] = Field(default_factory=list)
+    validation: Optional[DeckValidationResponse] = None
 
 
 class ProductPurchaseCreate(BaseModel):

@@ -8,6 +8,8 @@ from api.auth import get_current_user
 from database import get_db
 from models import Card, CollectionItem, Deck, DeckAssemblyProgress, DeckEntry, User
 from schemas import DeckAssemblyProgressResponse, DeckAssemblyProgressUpdate, DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckResponse, DeckUpdate
+from services.deck_validation import is_basic_energy, validate_deck
+from services.standard_legality import is_standard_regulation_mark
 
 router = APIRouter()
 
@@ -51,6 +53,18 @@ def _owned_quantities(db: Session, user_id: int, card_ids: list[str]) -> dict[st
     }
 
 
+def _standard_legal_fingerprints(db: Session) -> set[str]:
+    return {
+        fingerprint
+        for fingerprint, regulation_mark in db.query(Card.playable_fingerprint, Card.regulation_mark).filter(
+            Card.is_custom.is_(False),
+            Card.playable_fingerprint.isnot(None),
+            Card.regulation_mark.isnot(None),
+        ).all()
+        if fingerprint and is_standard_regulation_mark(regulation_mark)
+    }
+
+
 def _copy_limit_warnings(entries: list[DeckEntry]) -> list[dict]:
     """Warn only when every printing in a name group has usable gameplay metadata."""
     groups: dict[str, list[DeckEntry]] = {}
@@ -63,18 +77,14 @@ def _copy_limit_warnings(entries: list[DeckEntry]) -> list[dict]:
         cards = [entry.card for entry in named_entries]
         if any(not card or not card.supertype for card in cards):
             continue
-        is_basic_energy = all(
-            _composition_category(card.supertype) == "Energy"
-            and any(str(subtype).strip().casefold() == "basic" for subtype in (card.subtypes or []))
-            for card in cards
-        )
+        basic_energy = all(is_basic_energy(card) for card in cards)
         quantity = sum(int(entry.required_quantity or 0) for entry in named_entries)
-        if quantity > 4 and not is_basic_energy:
+        if quantity > 4 and not basic_energy:
             warnings.append({"name": name, "quantity": quantity})
     return sorted(warnings, key=lambda warning: warning["name"].lower())
 
 
-def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, include_entries: bool = True) -> DeckResponse:
+def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, include_entries: bool = True, standard_legal_fingerprints: set[str] | None = None) -> DeckResponse:
     entries = list(deck.entries) if include_entries else []
     if owned_quantities is None:
         owned_quantities = {}
@@ -98,6 +108,7 @@ def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, i
         name=deck.name,
         target_size=deck.target_size,
         description=deck.description,
+        format=deck.format or "Casual",
         created_at=deck.created_at,
         updated_at=deck.updated_at,
         current_card_count=current_card_count,
@@ -118,16 +129,19 @@ def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, i
             for entry in entries
         ],
         copy_limit_warnings=_copy_limit_warnings(entries),
+        validation=validate_deck(deck, owned_quantities, standard_legal_fingerprints),
     )
 
 
 @router.get("/", response_model=list[DeckResponse])
 def get_decks(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    decks = db.query(Deck).filter(Deck.user_id == current_user.id).order_by(Deck.updated_at.desc(), Deck.id.desc()).all()
+    decks = db.query(Deck).options(joinedload(Deck.entries).joinedload(DeckEntry.card)).filter(Deck.user_id == current_user.id).order_by(Deck.updated_at.desc(), Deck.id.desc()).all()
     if not decks:
         return []
 
     deck_ids = [deck.id for deck in decks]
+    owned_quantities = _owned_quantities(db, current_user.id, [entry.card_id for deck in decks for entry in deck.entries])
+    standard_legal_fingerprints = _standard_legal_fingerprints(db)
     totals = {
         deck_id: int(quantity or 0)
         for deck_id, quantity in db.query(DeckEntry.deck_id, func.coalesce(func.sum(DeckEntry.required_quantity), 0)).filter(
@@ -169,6 +183,7 @@ def get_decks(current_user: User = Depends(get_current_user), db: Session = Depe
             name=deck.name,
             target_size=deck.target_size,
             description=deck.description,
+            format=deck.format or "Casual",
             created_at=deck.created_at,
             updated_at=deck.updated_at,
             current_card_count=current_card_count,
@@ -177,26 +192,27 @@ def get_decks(current_user: User = Depends(get_current_user), db: Session = Depe
             missing_copy_count=shortages.get(deck.id, 0),
             status=status,
             composition_counts=composition_counts[deck.id],
+            validation=validate_deck(deck, owned_quantities, standard_legal_fingerprints),
         ))
     return responses
 
 
 @router.post("/", response_model=DeckResponse)
 def create_deck(payload: DeckCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    deck = Deck(name=payload.name.strip(), target_size=payload.target_size, description=payload.description, user_id=current_user.id)
+    deck = Deck(name=payload.name.strip(), target_size=payload.target_size, description=payload.description, format=payload.format, user_id=current_user.id)
     if not deck.name:
         raise HTTPException(status_code=422, detail="Deck name is required")
     db.add(deck)
     db.commit()
     db.refresh(deck)
-    return _deck_response(deck)
+    return _deck_response(deck, standard_legal_fingerprints=_standard_legal_fingerprints(db))
 
 
 @router.get("/{deck_id}", response_model=DeckResponse)
 def get_deck(deck_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     deck = _deck_or_404(db, deck_id, current_user.id, with_entries=True)
     owned_quantities = _owned_quantities(db, current_user.id, [entry.card_id for entry in deck.entries])
-    return _deck_response(deck, owned_quantities)
+    return _deck_response(deck, owned_quantities, standard_legal_fingerprints=_standard_legal_fingerprints(db))
 
 
 @router.get("/{deck_id}/assembly-progress", response_model=list[DeckAssemblyProgressResponse])
@@ -252,11 +268,13 @@ def update_deck(deck_id: int, payload: DeckUpdate, current_user: User = Depends(
         fields_set = payload.__fields_set__
     if "description" in fields_set:
         deck.description = payload.description
+    if "format" in fields_set:
+        deck.format = payload.format
     deck.updated_at = datetime.datetime.utcnow()
     db.commit()
     db.refresh(deck)
     owned_quantities = _owned_quantities(db, current_user.id, [entry.card_id for entry in deck.entries])
-    return _deck_response(deck, owned_quantities)
+    return _deck_response(deck, owned_quantities, standard_legal_fingerprints=_standard_legal_fingerprints(db))
 
 
 @router.delete("/{deck_id}")

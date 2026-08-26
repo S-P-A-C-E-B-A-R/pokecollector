@@ -574,6 +574,14 @@ const en = {
     missingCopied: 'Missing-card list copied',
     exportChecklistCsv: 'Export CSV',
     printChecklist: 'Print checklist',
+    validationTitle: 'Deck Validation',
+    validationValid: 'Valid deck',
+    validationErrors: '{count} validation errors',
+    format: 'Format',
+    formatCasual: 'Casual',
+    formatStandard: 'Standard',
+    formatExpanded: 'Expanded',
+    formatUnlimited: 'Unlimited',
   },
 
   // Analytics

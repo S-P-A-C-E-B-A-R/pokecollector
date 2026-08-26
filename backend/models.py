@@ -292,6 +292,7 @@ class Deck(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     target_size = Column(Integer, nullable=False, default=60)
     description = Column(Text, nullable=True)
+    format = Column(String, nullable=False, default="Casual", server_default="Casual")
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 

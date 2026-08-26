@@ -11,6 +11,7 @@ import DeckCompositionBar from '../components/decks/DeckCompositionBar'
 import DeckCardGallery from '../components/decks/DeckCardGallery'
 import DeckCardViewer from '../components/decks/DeckCardViewer'
 import DeckCollectionPicker from '../components/decks/DeckCollectionPicker'
+import DeckValidationPanel from '../components/decks/DeckValidationPanel'
 import { deckProgress, nextDeckCardIndex, previousDeckCardIndex, sortDeckEntries } from '../utils/deckProgress'
 
 function invalidateDeck(queryClient, deckId) {
@@ -45,7 +46,7 @@ export default function DeckEditor() {
   const saveDetails = event => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    updateMutation.mutate({ name: form.get('name'), description: form.get('description') || null, target_size: Number(form.get('target_size')) })
+    updateMutation.mutate({ name: form.get('name'), description: form.get('description') || null, target_size: Number(form.get('target_size')), format: form.get('format') })
   }
   const previousCard = () => setViewerIndex(index => previousDeckCardIndex(index, entries.length))
   const nextCard = () => setViewerIndex(index => nextDeckCardIndex(index, entries.length))
@@ -57,16 +58,18 @@ export default function DeckEditor() {
         <div className="flex gap-1"><button className="btn-secondary" onClick={() => navigate(`/decks/${deckId}/build`)}><Hammer size={15} /> {t('decks.buildDeck')}</button><button className="btn-ghost text-brand-red" onClick={async () => { if (await confirm({ title: t('common.delete'), message: label('decks.deleteConfirm', { name: deck.name }) })) deleteMutation.mutate() }}><Trash2 size={15} /> {t('common.delete')}</button></div>
       </div>
 
-      <form onSubmit={saveDetails} className="card grid gap-3 md:grid-cols-[1fr_10rem_auto] md:items-end">
+      <form onSubmit={saveDetails} className="card grid gap-3 md:grid-cols-[1fr_10rem_10rem_auto] md:items-end">
         <label className="text-xs text-text-muted">{t('decks.name')}<input name="name" className="input mt-1" defaultValue={deck.name} required /></label>
         <label className="text-xs text-text-muted">{t('decks.target')}<select name="target_size" className="select mt-1" defaultValue={deck.target_size}>{[20, 40, 60].map(size => <option key={size} value={size}>{size}</option>)}</select></label>
+        <label className="text-xs text-text-muted">{t('decks.format')}<select name="format" className="select mt-1" defaultValue={deck.format || 'Casual'}>{['Casual', 'Standard', 'Expanded', 'Unlimited'].map(format => <option key={format} value={format}>{t(`decks.format${format}`)}</option>)}</select></label>
         <button className="btn-primary" disabled={updateMutation.isPending}>{t('common.save')}</button>
-        <label className="text-xs text-text-muted md:col-span-3">{t('decks.description')}<input name="description" className="input mt-1" defaultValue={deck.description || ''} /></label>
+        <label className="text-xs text-text-muted md:col-span-4">{t('decks.description')}<input name="description" className="input mt-1" defaultValue={deck.description || ''} /></label>
       </form>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_36rem]">
         <section className="order-2 space-y-3 lg:order-1">
-          <DeckCompositionBar entries={entries} progress={progress} t={t} label={label} />
+           <DeckCompositionBar entries={entries} progress={progress} t={t} label={label} />
+           <DeckValidationPanel validation={deck.validation} t={t} />
           {deck.copy_limit_warnings?.length > 0 && <div className="rounded-xl border border-yellow/30 bg-yellow/10 p-3 text-xs text-yellow">{deck.copy_limit_warnings.map(warning => <p key={warning.name} className="flex gap-2"><AlertTriangle size={14} aria-hidden="true" /><span>{label('decks.copyWarning', { name: warning.name, count: warning.quantity })}</span></p>)}</div>}
           <DeckCardGallery
             entries={entries}

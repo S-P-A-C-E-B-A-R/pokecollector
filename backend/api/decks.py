@@ -9,6 +9,7 @@ from database import get_db
 from models import Card, CollectionItem, Deck, DeckAssemblyProgress, DeckEntry, User
 from schemas import DeckAssemblyProgressResponse, DeckAssemblyProgressUpdate, DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckResponse, DeckUpdate
 from services.deck_validation import is_basic_energy, validate_deck
+from services.deck_analysis import analyze_deck
 from services.standard_legality import is_standard_regulation_mark
 
 router = APIRouter()
@@ -130,6 +131,7 @@ def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, i
         ],
         copy_limit_warnings=_copy_limit_warnings(entries),
         validation=validate_deck(deck, owned_quantities, standard_legal_fingerprints),
+        analysis=analyze_deck(deck),
     )
 
 

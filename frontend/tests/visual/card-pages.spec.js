@@ -83,6 +83,14 @@ const deck = {
     warnings: [{ code: 'ownership', status: 'fail', severity: 'warning', message: 'Missing 1 copies from your collection.', details: { missing: 1, cards: [{ entry_id: 2, name: 'Visual card 2', missing: 1 }] } }],
     checks: [{ code: 'deck_size', status: 'fail', severity: 'error', message: 'Deck contains 24 of 40 cards.', details: { current: 24, target: 40 } }, { code: 'basic_pokemon', status: 'pass', severity: 'error', message: 'Deck contains a Basic Pokemon.', details: { count: 1 } }, { code: 'copy_limit', status: 'fail', severity: 'error', message: 'One or more cards exceed the 4-copy limit.', details: { violations: [{ name: 'Visual card 1', quantity: 8 }] } }, { code: 'ownership', status: 'fail', severity: 'warning', message: 'Missing 1 copies from your collection.', details: { missing: 1, cards: [{ entry_id: 2, name: 'Visual card 2', missing: 1 }] } }],
   },
+  analysis: {
+    composition: { total_cards: 24, pokemon_count: 8, trainer_count: 10, energy_count: 6, other_count: 0, pokemon_percent: 33.333, trainer_percent: 41.667, energy_percent: 25, other_percent: 0 },
+    pokemon: { stages: { Basic: 8, 'Stage 1': 0, 'Stage 2': 0, other_unknown: 0 }, types: { Lightning: 8 }, hp: { count: 8, min: 60, max: 60, average: 60, median: 60, missing_hp: 0 }, retreat: { count: 8, min: 1, max: 1, average: 1, median: 1, distribution: { 0: 0, 1: 8, 2: 0, '3+': 0 }, missing_retreat: 0 } },
+    trainers: { Item: 10, Supporter: 0, Stadium: 0, Tool: 0, other_unknown: 0 },
+    energy: { basic: 6, special: 0, other_unknown: 0, types: { Lightning: 6 } },
+    attacks: { fixed_attack_count: 8, variable_attack_count: 1, non_damage_attack_count: 1, unknown_attack_count: 0, unparseable_attack_count: 0, fixed_damage: { count: 8, min: 30, max: 30, average: 30, median: 30 }, cost_distribution: { 0: 0, 1: 8, 2: 0, 3: 0, '4+': 0, unknown: 0 } },
+    diversity: { total_cards: 24, unique_printings: 3, unique_card_names: 3 },
+  },
 }
 
 const deckSummary = { ...deck, entries: [], copy_limit_warnings: [] }
@@ -244,6 +252,18 @@ test('deck editor expands structured validation details', async ({ page }) => {
   await page.getByRole('button', { name: /Deck Validation/ }).click()
   await expect(page.getByText('Visual card 1: 8')).toBeVisible()
   await expect(page.getByText('Visual card 2: 1 Missing')).toBeVisible()
+})
+
+test('deck editor renders quantity-weighted analytics on desktop and mobile', async ({ page }) => {
+  await page.goto('/decks/1')
+  await page.getByRole('tab', { name: 'Analytics' }).click()
+  await expect(page.getByText('Card diversity')).toBeVisible()
+  await expect(page.getByText('24')).toBeVisible()
+  await page.getByRole('tab', { name: 'Pokemon' }).click()
+  await expect(page.getByText('Lightning')).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('tab', { name: 'Attacks' }).click()
+  await expect(page.getByText('Fixed-damage attacks')).toBeVisible()
 })
 
 test('real Collection list keeps shared artwork, identity, and fallback treatment', async ({ page }) => {

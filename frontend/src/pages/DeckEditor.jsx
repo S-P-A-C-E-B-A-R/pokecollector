@@ -12,6 +12,7 @@ import DeckCardGallery from '../components/decks/DeckCardGallery'
 import DeckCardViewer from '../components/decks/DeckCardViewer'
 import DeckCollectionPicker from '../components/decks/DeckCollectionPicker'
 import DeckValidationPanel from '../components/decks/DeckValidationPanel'
+import DeckAnalyticsPanel from '../components/decks/DeckAnalyticsPanel'
 import { deckProgress, nextDeckCardIndex, previousDeckCardIndex, sortDeckEntries } from '../utils/deckProgress'
 
 function invalidateDeck(queryClient, deckId) {
@@ -26,6 +27,7 @@ export default function DeckEditor() {
   const confirm = useConfirmDialog()
   const queryClient = useQueryClient()
   const [viewerIndex, setViewerIndex] = useState(null)
+  const [view, setView] = useState('editor')
   const label = (key, values) => Object.entries(values).reduce((text, [name, value]) => text.replace(`{${name}}`, value), t(key))
   const { data: deck, isLoading } = useQuery({ queryKey: ['deck', deckId], queryFn: () => getDeck(deckId).then(response => response.data) })
   const { data: collection = [] } = useQuery({ queryKey: ['deck-picker-collection'], queryFn: () => getCollection({}).then(response => response.data) })
@@ -66,7 +68,9 @@ export default function DeckEditor() {
         <label className="text-xs text-text-muted md:col-span-4">{t('decks.description')}<input name="description" className="input mt-1" defaultValue={deck.description || ''} /></label>
       </form>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_36rem]">
+      <div className="flex gap-2" role="tablist"><button type="button" role="tab" aria-selected={view === 'editor'} className={view === 'editor' ? 'btn-primary' : 'btn-secondary'} onClick={() => setView('editor')}>{t('decks.editor')}</button><button type="button" role="tab" aria-selected={view === 'analytics'} className={view === 'analytics' ? 'btn-primary' : 'btn-secondary'} onClick={() => setView('analytics')}>{t('decks.analytics')}</button></div>
+
+      {view === 'analytics' ? <DeckAnalyticsPanel analysis={deck.analysis} t={t} /> : <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_36rem]">
         <section className="order-2 space-y-3 lg:order-1">
            <DeckCompositionBar entries={entries} progress={progress} t={t} label={label} />
            <DeckValidationPanel validation={deck.validation} t={t} />
@@ -86,7 +90,7 @@ export default function DeckEditor() {
         <aside className="order-1 lg:order-2 lg:sticky lg:top-20 lg:self-start">
           <DeckCollectionPicker collection={collection} entries={entries} onAdd={cardId => addCard(cardId, entries.find(entry => entry.card_id === cardId))} optimisticAddQuantities={optimisticAddQuantities} pendingCardIds={pendingCardIds} t={t} label={label} />
         </aside>
-      </div>
+      </div>}
 
       <DeckCardViewer
         entries={entries}

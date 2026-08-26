@@ -360,6 +360,7 @@ class DeckResponse(BaseModel):
     entries: List[DeckEntryResponse] = Field(default_factory=list)
     copy_limit_warnings: List[DeckCopyLimitWarning] = Field(default_factory=list)
     validation: Optional[DeckValidationResponse] = None
+    analysis: Optional[Dict[str, Any]] = None
 
 
 class ProductPurchaseCreate(BaseModel):

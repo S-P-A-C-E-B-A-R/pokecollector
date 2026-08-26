@@ -6,7 +6,7 @@ try:
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
-    from api.decks import add_deck_entry, create_deck, delete_deck, delete_deck_entry, get_deck, update_deck, update_deck_entry
+    from api.decks import add_deck_entry, create_deck, delete_deck, delete_deck_entry, get_deck, get_decks, update_deck, update_deck_entry
     from database import Base
     from models import Card, CollectionItem, Deck, DeckEntry, User
     from schemas import DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckUpdate
@@ -27,7 +27,10 @@ class DeckApiTests(unittest.TestCase):
         self.other_user = User(username="misty", hashed_password="x", role="trainer", is_active=True)
         self.card = Card(id="sv1-1_en", tcg_card_id="sv1-1", name="Pikachu ex", set_id="sv1", number="1", lang="en", supertype="Pokemon", variants_normal=True)
         self.energy = Card(id="sv1-2_en", tcg_card_id="sv1-2", name="Basic Lightning Energy", set_id="sv1", number="2", lang="en", supertype="Energy", subtypes=["Basic"], variants_normal=True)
-        self.db.add_all([self.user, self.other_user, self.card, self.energy])
+        self.grass_energy = Card(id="sv1-3_en", tcg_card_id="sv1-3", name="Grass Energy", set_id="sv1", number="3", lang="en", supertype="Energy", subtypes=["Basic"], variants_normal=True)
+        self.ultra_ball = Card(id="sv1-4_en", tcg_card_id="sv1-4", name="Ultra Ball", set_id="sv1", number="4", lang="en", supertype="Trainer", variants_normal=True)
+        self.virizion = Card(id="sv1-5_en", tcg_card_id="sv1-5", name="Virizion", set_id="sv1", number="5", lang="en", supertype="Pokemon", variants_normal=True)
+        self.db.add_all([self.user, self.other_user, self.card, self.energy, self.grass_energy, self.ultra_ball, self.virizion])
         self.db.commit()
         self.db.refresh(self.user)
         self.db.refresh(self.other_user)
@@ -114,6 +117,40 @@ class DeckApiTests(unittest.TestCase):
         result = add_deck_entry(deck.id, DeckEntryCreate(card_id=self.energy.id, required_quantity=5), current_user=self.user, db=self.db)
         self.assertEqual(result.copy_limit_warnings[0].name, "Pikachu ex")
         self.assertEqual(len(result.copy_limit_warnings), 1)
+
+    def test_basic_energy_is_excluded_while_non_basic_cards_warn(self):
+        for card in (self.grass_energy, self.ultra_ball, self.virizion):
+            self._own(card.id, 14)
+        deck = self._create(40)
+        add_deck_entry(deck.id, DeckEntryCreate(card_id=self.grass_energy.id, required_quantity=14), current_user=self.user, db=self.db)
+        add_deck_entry(deck.id, DeckEntryCreate(card_id=self.ultra_ball.id, required_quantity=5), current_user=self.user, db=self.db)
+        result = add_deck_entry(deck.id, DeckEntryCreate(card_id=self.virizion.id, required_quantity=5), current_user=self.user, db=self.db)
+        self.assertEqual([(warning.name, warning.quantity) for warning in result.copy_limit_warnings], [("Ultra Ball", 5), ("Virizion", 5)])
+
+    def test_over_target_quantity_changes_remain_loadable(self):
+        self._own(self.card.id, 60)
+        deck = self._create(40)
+        result = add_deck_entry(deck.id, DeckEntryCreate(card_id=self.card.id, required_quantity=39), current_user=self.user, db=self.db)
+        for quantity in (40, 41, 42, 41, 40, 39):
+            result = update_deck_entry(deck.id, result.entries[0].id, DeckEntryUpdate(required_quantity=quantity), current_user=self.user, db=self.db)
+            self.assertEqual(result.current_card_count, quantity)
+        result = update_deck_entry(deck.id, result.entries[0].id, DeckEntryUpdate(required_quantity=55), current_user=self.user, db=self.db)
+        result = update_deck_entry(deck.id, result.entries[0].id, DeckEntryUpdate(required_quantity=56), current_user=self.user, db=self.db)
+        self.assertEqual(result.current_card_count, 56)
+        result = update_deck_entry(deck.id, result.entries[0].id, DeckEntryUpdate(required_quantity=55), current_user=self.user, db=self.db)
+        self.assertEqual(result.current_card_count, 55)
+        self.assertEqual(get_deck(deck.id, current_user=self.user, db=self.db).current_card_count, 55)
+
+    def test_list_includes_composition_summary_without_entries(self):
+        for card in (self.card, self.ultra_ball, self.energy):
+            self._own(card.id, 20)
+        deck = self._create(40)
+        add_deck_entry(deck.id, DeckEntryCreate(card_id=self.card.id, required_quantity=8), current_user=self.user, db=self.db)
+        add_deck_entry(deck.id, DeckEntryCreate(card_id=self.ultra_ball.id, required_quantity=10), current_user=self.user, db=self.db)
+        add_deck_entry(deck.id, DeckEntryCreate(card_id=self.energy.id, required_quantity=6), current_user=self.user, db=self.db)
+        listed = get_decks(current_user=self.user, db=self.db)[0]
+        self.assertEqual(listed.composition_counts, {"Pokemon": 8, "Trainer": 10, "Energy": 6, "Other": 0})
+        self.assertEqual(listed.entries, [])
 
 
 if __name__ == "__main__":

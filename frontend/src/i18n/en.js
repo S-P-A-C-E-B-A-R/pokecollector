@@ -532,6 +532,7 @@ const en = {
     previewCard: 'Preview {name}',
     addCard: 'Add {name}',
     addToDeck: 'Add to deck',
+    tooManyRequests: 'Too many requests. Please wait a moment and try again.',
     inDeck: 'In deck: {count}',
     owned: 'Owned: {count}',
     shortage: 'Missing: {count}',

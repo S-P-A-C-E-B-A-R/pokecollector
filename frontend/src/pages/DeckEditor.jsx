@@ -70,7 +70,7 @@ export default function DeckEditor() {
 
       <div className="flex gap-2" role="tablist"><button type="button" role="tab" aria-selected={view === 'editor'} className={view === 'editor' ? 'btn-primary' : 'btn-secondary'} onClick={() => setView('editor')}>{t('decks.editor')}</button><button type="button" role="tab" aria-selected={view === 'analytics'} className={view === 'analytics' ? 'btn-primary' : 'btn-secondary'} onClick={() => setView('analytics')}>{t('decks.analytics')}</button></div>
 
-      {view === 'analytics' ? <DeckAnalyticsPanel analysis={deck.analysis} t={t} /> : <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_36rem]">
+      {view === 'analytics' ? <DeckAnalyticsPanel analysis={deck.analysis} deckId={deckId} entries={entries} t={t} /> : <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_36rem]">
         <section className="order-2 space-y-3 lg:order-1">
            <DeckCompositionBar entries={entries} progress={progress} t={t} label={label} />
            <DeckValidationPanel validation={deck.validation} t={t} />

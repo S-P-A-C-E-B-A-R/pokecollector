@@ -1,6 +1,6 @@
 import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
@@ -10,6 +10,7 @@ from models import Card, CollectionItem, Deck, DeckAssemblyProgress, DeckEntry, 
 from schemas import DeckAssemblyProgressResponse, DeckAssemblyProgressUpdate, DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckResponse, DeckUpdate
 from services.deck_validation import is_basic_energy, validate_deck
 from services.deck_analysis import analyze_deck
+from services.deck_probability import analyze_deck_probability
 from services.standard_legality import is_standard_regulation_mark
 
 router = APIRouter()
@@ -215,6 +216,20 @@ def get_deck(deck_id: int, current_user: User = Depends(get_current_user), db: S
     deck = _deck_or_404(db, deck_id, current_user.id, with_entries=True)
     owned_quantities = _owned_quantities(db, current_user.id, [entry.card_id for entry in deck.entries])
     return _deck_response(deck, owned_quantities, standard_legal_fingerprints=_standard_legal_fingerprints(db))
+
+
+@router.get("/{deck_id}/probability")
+def get_deck_probability(
+    deck_id: int,
+    hand: int = Query(7, ge=0, le=250),
+    draws: int = Query(0, ge=0, le=250),
+    card_name: str | None = Query(None, max_length=255),
+    prize_count: int = Query(6, ge=0, le=250),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    deck = _deck_or_404(db, deck_id, current_user.id, with_entries=True)
+    return analyze_deck_probability(deck, hand, draws, card_name, prize_count)
 
 
 @router.get("/{deck_id}/assembly-progress", response_model=list[DeckAssemblyProgressResponse])

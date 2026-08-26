@@ -191,6 +191,21 @@ async function installApiFixtures(page) {
       return
     }
 
+    if (path === '/api/decks/1/probability') {
+      const selected = url.searchParams.get('card_name')
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        deck_size: 24,
+        opening_hand_size: Number(url.searchParams.get('hand') || 7),
+        subsequent_draws: Number(url.searchParams.get('draws') || 0),
+        cards_seen: Number(url.searchParams.get('hand') || 7) + Number(url.searchParams.get('draws') || 0),
+        prize_count: Number(url.searchParams.get('prize_count') || 6),
+        basic_pokemon: { count: 8, at_least_one: 0.95, none: 0.05 },
+        outs: { draw_outs: { count: 4, opening_probability: 0.75, cards_seen_probability: 0.82 }, pokemon_search_outs: { count: 7, opening_probability: 0.91, cards_seen_probability: 0.96 }, energy_access_outs: { count: 0, opening_probability: 0, cards_seen_probability: 0 }, switching_outs: { count: 0, opening_probability: 0, cards_seen_probability: 0 }, recovery_outs: { count: 0, opening_probability: 0, cards_seen_probability: 0 } },
+        key_card: selected ? { name: selected, copies: 4, opening_probability: 0.75, cards_seen_probability: 0.82, prize_risk: { at_least_one: 0.7, all_copies: 0.01, expected_copies: 1 } } : null,
+      }) })
+      return
+    }
+
     const responses = {
       '/api/auth/mode': { multi_user: true },
       '/api/auth/me': USER,
@@ -279,6 +294,18 @@ test('deck analytics consistency shows non-zero effects and expandable sources',
   await expect(page.getByText('Switching', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: /Pokemon Search.*7 cards.*2 sources/ }).first().click()
   await expect(page.getByText('Ultra Ball')).toBeVisible()
+})
+
+test('deck analytics probability calculates opening, outs, key-card, and prize views', async ({ page }) => {
+  await page.goto('/decks/1')
+  await page.getByRole('tab', { name: 'Analytics' }).click()
+  await page.getByRole('tab', { name: 'Probability' }).click()
+  await expect(page.getByText('Basic Pokemon')).toBeVisible()
+  await expect(page.getByText('95.0%')).toBeVisible()
+  await page.getByLabel('Key card').selectOption({ label: 'Visual card 1' })
+  await expect(page.getByText('Prize risk')).toBeVisible()
+  await page.getByLabel('Extra draws').fill('2')
+  await expect(page.getByText('Cards seen').first()).toBeVisible()
 })
 
 test('real Collection list keeps shared artwork, identity, and fallback treatment', async ({ page }) => {

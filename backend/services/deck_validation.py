@@ -11,7 +11,7 @@ def _normalized(value) -> str:
     return str(value or "").strip().casefold()
 
 
-def _is_basic_pokemon(card) -> bool:
+def is_basic_pokemon(card) -> bool:
     return _normalized(getattr(card, "supertype", None)) in {"pokemon", "pokémon"} and (
         _normalized(getattr(card, "stage", None)) == "basic"
         or "basic" in {_normalized(subtype) for subtype in (getattr(card, "subtypes", None) or [])}
@@ -51,7 +51,7 @@ def validate_deck(deck, owned_quantities=None, standard_legal_fingerprints=None)
     else:
         checks.append(_check("deck_size", "fail", "error", f"Deck contains {required_total} of {deck.target_size} cards.", {"current": required_total, "target": deck.target_size}))
 
-    basic_entries = [entry for entry in entries if entry.card and _is_basic_pokemon(entry.card)]
+    basic_entries = [entry for entry in entries if entry.card and is_basic_pokemon(entry.card)]
     if basic_entries:
         checks.append(_check("basic_pokemon", "pass", "error", "Deck contains a Basic Pokemon.", {"count": len(basic_entries)}))
     else:

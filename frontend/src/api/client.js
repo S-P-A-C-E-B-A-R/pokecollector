@@ -201,6 +201,8 @@ export const getCollectionStats = (params = {}) => api.get('/collection/stats/su
 export const getDecks = () => api.get('/decks/')
 export const getDeck = (id) => api.get(`/decks/${id}`)
 export const createDeck = (data) => api.post('/decks/', data)
+export const duplicateDeck = (id) => api.post(`/decks/${id}/duplicate`)
+export const compareDecks = (params) => api.get('/decks/compare', { params })
 export const updateDeck = (id, data) => api.patch(`/decks/${id}`, data)
 export const deleteDeck = (id) => api.delete(`/decks/${id}`)
 export const addDeckEntry = (deckId, data) => api.post(`/decks/${deckId}/entries`, data)

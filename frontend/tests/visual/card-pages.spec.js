@@ -206,6 +206,24 @@ async function installApiFixtures(page) {
       return
     }
 
+    if (path === '/api/decks/compare') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        decks: { left: deck, right: { ...deck, id: 2, name: 'Complete Deck', current_card_count: 40, validation: { valid: true, errors: [], warnings: [], checks: [] } } },
+        cards: { changes: [{ name: 'Visual card 1', left: 8, right: 6, delta: -2, status: 'changed', printings: { left: [], right: [] } }, { name: 'Ultra Ball', left: 0, right: 2, delta: 2, status: 'added', printings: { left: [], right: [] } }] },
+        composition: [{ metric: 'Pokemon', left: 8, right: 6, delta: -2 }, { metric: 'Trainer', left: 10, right: 12, delta: 2 }],
+        validation: { left: deck.validation, right: { valid: true, errors: [], warnings: [], checks: [] }, changes: [{ code: 'deck_size', left: { status: 'fail' }, right: { status: 'pass' } }] },
+        ownership: { left: 1, right: 0, delta: -1 },
+        effects: { left: deck.analysis.effects, right: deck.analysis.effects, changes: [{ metric: 'draw', left: 4, right: 6, delta: 2 }] },
+        probability: { left: { basic_pokemon: { at_least_one: 0.7 }, key_card: { copies: 2, opening_probability: 0.22 } }, right: { basic_pokemon: { at_least_one: 0.8 }, key_card: { copies: 4, opening_probability: 0.4 } } },
+      }) })
+      return
+    }
+
+    if (path === '/api/decks/1/duplicate') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...deck, id: 99, name: 'Visual Practice Deck (Copy)' }) })
+      return
+    }
+
     const responses = {
       '/api/auth/mode': { multi_user: true },
       '/api/auth/me': USER,
@@ -230,6 +248,7 @@ async function installApiFixtures(page) {
       '/api/trades/': trades,
       '/api/decks/': deckSummaries,
       '/api/decks/1': deck,
+      '/api/decks/99': { ...deck, id: 99, name: 'Visual Practice Deck (Copy)' },
     }
 
     await route.fulfill({
@@ -306,6 +325,24 @@ test('deck analytics probability calculates opening, outs, key-card, and prize v
   await expect(page.getByText('Prize risk')).toBeVisible()
   await page.getByLabel('Extra draws').fill('2')
   await expect(page.getByText('Cards seen').first()).toBeVisible()
+})
+
+test('deck comparison presents card deltas and compact mobile-safe sections', async ({ page }) => {
+  await page.goto('/decks/compare?left=1&right=2')
+  await expect(page.getByText('Card Changes')).toBeVisible()
+  await expect(page.locator('section').filter({ hasText: 'Card Changes' }).locator('span').filter({ hasText: 'Visual card 1' })).toBeVisible()
+  await expect(page.getByText('Composition')).toBeVisible()
+  await expect(page.getByText('Ownership & Validation')).toBeVisible()
+  await page.getByLabel('Show unchanged').check()
+  await page.getByLabel('Key card').selectOption('Visual card 1')
+  await expect(page.getByText('Copies: 2 → 4; Opening 7: 22.0% → 40.0%')).toBeVisible()
+})
+
+test('deck editor duplicates a deck into an independent editor route', async ({ page }) => {
+  await page.goto('/decks/1')
+  await page.getByRole('button', { name: 'Duplicate' }).click()
+  await page.waitForURL('**/decks/99')
+  await expect(page.locator('input[name="name"]')).toHaveValue('Visual Practice Deck (Copy)')
 })
 
 test('real Collection list keeps shared artwork, identity, and fallback treatment', async ({ page }) => {

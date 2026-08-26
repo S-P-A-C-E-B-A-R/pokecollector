@@ -11,6 +11,7 @@ from schemas import DeckAssemblyProgressResponse, DeckAssemblyProgressUpdate, De
 from services.deck_validation import is_basic_energy, validate_deck
 from services.deck_analysis import analyze_deck
 from services.deck_probability import analyze_deck_probability
+from services.deck_comparison import compare_decks
 from services.standard_legality import is_standard_regulation_mark
 
 router = APIRouter()
@@ -209,6 +210,35 @@ def create_deck(payload: DeckCreate, current_user: User = Depends(get_current_us
     db.commit()
     db.refresh(deck)
     return _deck_response(deck, standard_legal_fingerprints=_standard_legal_fingerprints(db))
+
+
+@router.get("/compare")
+def compare_owned_decks(
+    left_id: int = Query(..., ge=1), right_id: int = Query(..., ge=1), hand: int = Query(7, ge=0, le=250), draws: int = Query(0, ge=0, le=250), card_name: str | None = Query(None, max_length=255), prize_count: int = Query(6, ge=0, le=250),
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
+):
+    left = _deck_or_404(db, left_id, current_user.id, with_entries=True)
+    right = _deck_or_404(db, right_id, current_user.id, with_entries=True)
+    owned = _owned_quantities(db, current_user.id, [entry.card_id for entry in left.entries + right.entries])
+    fingerprints = _standard_legal_fingerprints(db)
+    left_response = _deck_response(left, owned, standard_legal_fingerprints=fingerprints)
+    right_response = _deck_response(right, owned, standard_legal_fingerprints=fingerprints)
+    left_response = left_response.model_dump() if hasattr(left_response, "model_dump") else left_response.dict()
+    right_response = right_response.model_dump() if hasattr(right_response, "model_dump") else right_response.dict()
+    return compare_decks(left_response, right_response, analyze_deck_probability(left, hand, draws, card_name, prize_count), analyze_deck_probability(right, hand, draws, card_name, prize_count))
+
+
+@router.post("/{deck_id}/duplicate", response_model=DeckResponse)
+def duplicate_deck(deck_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    source = _deck_or_404(db, deck_id, current_user.id, with_entries=True)
+    duplicate = Deck(name=f"{source.name} (Copy)", target_size=source.target_size, description=source.description, format=source.format, user_id=current_user.id)
+    db.add(duplicate)
+    db.flush()
+    db.add_all([DeckEntry(deck_id=duplicate.id, card_id=entry.card_id, required_quantity=entry.required_quantity) for entry in source.entries])
+    db.commit()
+    duplicate = _deck_or_404(db, duplicate.id, current_user.id, with_entries=True)
+    owned = _owned_quantities(db, current_user.id, [entry.card_id for entry in duplicate.entries])
+    return _deck_response(duplicate, owned, standard_legal_fingerprints=_standard_legal_fingerprints(db))
 
 
 @router.get("/{deck_id}", response_model=DeckResponse)

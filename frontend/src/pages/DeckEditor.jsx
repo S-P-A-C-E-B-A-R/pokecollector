@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Hammer, Trash2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Copy, Hammer, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { deleteDeck, deleteDeckEntry, getCollection, getDeck, updateDeck } from '../api/client'
+import { deleteDeck, deleteDeckEntry, duplicateDeck, getCollection, getDeck, updateDeck } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import { useConfirmDialog } from '../contexts/ConfirmDialogContext'
 import { useDeckQuantitySync } from '../hooks/useDeckQuantitySync'
@@ -38,6 +38,7 @@ export default function DeckEditor() {
   const handleDeckMutationError = error => { onSuccess(); showDeckMutationError(error) }
   const removeMutation = useMutation({ mutationFn: entryId => deleteDeckEntry(deckId, entryId), onSuccess, onError: handleDeckMutationError })
   const deleteMutation = useMutation({ mutationFn: () => deleteDeck(deckId), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['decks'] }); navigate('/decks') }, onError: error => toast.error(error.response?.data?.detail || t('common.error')) })
+  const duplicateMutation = useMutation({ mutationFn: () => duplicateDeck(deckId), onSuccess: response => { queryClient.invalidateQueries({ queryKey: ['decks'] }); toast.success('Deck duplicated'); navigate(`/decks/${response.data.id}`) }, onError: error => toast.error(error.response?.data?.detail || t('common.error')) })
   const { optimisticQuantities, pendingEntryIds, changeQuantity, addCard, optimisticAddQuantities, pendingCardIds } = useDeckQuantitySync({ deckId, queryClient, onError: showDeckMutationError })
 
   if (isLoading) return <div className="skeleton h-96 rounded-xl" />
@@ -57,7 +58,7 @@ export default function DeckEditor() {
     <div className="space-y-4 pb-6">
       <div className="flex items-center justify-between gap-2">
         <button className="btn-ghost" onClick={() => navigate('/decks')}><ArrowLeft size={16} /> {t('common.back')}</button>
-        <div className="flex gap-1"><button className="btn-secondary" onClick={() => navigate(`/decks/${deckId}/build`)}><Hammer size={15} /> {t('decks.buildDeck')}</button><button className="btn-ghost text-brand-red" onClick={async () => { if (await confirm({ title: t('common.delete'), message: label('decks.deleteConfirm', { name: deck.name }) })) deleteMutation.mutate() }}><Trash2 size={15} /> {t('common.delete')}</button></div>
+        <div className="flex gap-1"><button className="btn-secondary" onClick={() => navigate(`/decks/${deckId}/build`)}><Hammer size={15} /> {t('decks.buildDeck')}</button><button className="btn-secondary" disabled={duplicateMutation.isPending} onClick={() => duplicateMutation.mutate()}><Copy size={15} /> Duplicate</button><button className="btn-ghost text-brand-red" onClick={async () => { if (await confirm({ title: t('common.delete'), message: label('decks.deleteConfirm', { name: deck.name }) })) deleteMutation.mutate() }}><Trash2 size={15} /> {t('common.delete')}</button></div>
       </div>
 
       <form onSubmit={saveDetails} className="card grid gap-3 md:grid-cols-[1fr_10rem_10rem_auto] md:items-end">

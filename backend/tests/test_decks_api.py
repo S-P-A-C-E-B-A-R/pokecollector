@@ -6,7 +6,7 @@ try:
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 
-    from api.decks import add_deck_entry, create_deck, delete_deck, delete_deck_entry, get_deck, get_deck_assembly_progress, get_decks, reset_deck_assembly_progress, update_deck, update_deck_assembly_progress, update_deck_entry
+    from api.decks import add_deck_entry, compare_owned_decks, create_deck, delete_deck, delete_deck_entry, duplicate_deck, get_deck, get_deck_assembly_progress, get_decks, reset_deck_assembly_progress, update_deck, update_deck_assembly_progress, update_deck_entry
     from database import Base
     from models import Card, CollectionItem, Deck, DeckAssemblyProgress, DeckEntry, User
     from schemas import DeckAssemblyProgressUpdate, DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckUpdate
@@ -108,6 +108,30 @@ class DeckApiTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as entry_access:
             update_deck_entry(deck.id, result.entries[0].id, DeckEntryUpdate(required_quantity=2), current_user=self.other_user, db=self.db)
         self.assertEqual(entry_access.exception.status_code, 404)
+
+    def test_duplicate_copies_entries_but_not_assembly_progress(self):
+        self._own(self.card.id, 4)
+        deck = self._create(40)
+        original = add_deck_entry(deck.id, DeckEntryCreate(card_id=self.card.id, required_quantity=4), current_user=self.user, db=self.db)
+        update_deck_assembly_progress(deck.id, DeckAssemblyProgressUpdate(entry_id=original.entries[0].id, pulled_quantity=2), current_user=self.user, db=self.db)
+        copied = duplicate_deck(deck.id, current_user=self.user, db=self.db)
+        self.assertNotEqual(copied.id, deck.id)
+        self.assertEqual((copied.target_size, copied.format, copied.entries[0].required_quantity), (40, deck.format or "Casual", 4))
+        self.assertEqual(get_deck_assembly_progress(copied.id, current_user=self.user, db=self.db), [])
+        update_deck_entry(copied.id, copied.entries[0].id, DeckEntryUpdate(required_quantity=3), current_user=self.user, db=self.db)
+        self.assertEqual(get_deck(deck.id, current_user=self.user, db=self.db).entries[0].required_quantity, 4)
+
+    def test_other_user_cannot_duplicate_deck(self):
+        deck = self._create()
+        with self.assertRaises(HTTPException) as access:
+            duplicate_deck(deck.id, current_user=self.other_user, db=self.db)
+        self.assertEqual(access.exception.status_code, 404)
+
+    def test_other_user_cannot_compare_a_private_deck(self):
+        left, right = self._create(), self._create()
+        with self.assertRaises(HTTPException) as access:
+            compare_owned_decks(left.id, right.id, current_user=self.other_user, db=self.db)
+        self.assertEqual(access.exception.status_code, 404)
 
     def test_basic_energy_is_excluded_from_copy_limit_warning(self):
         self._own(self.card.id, 6)

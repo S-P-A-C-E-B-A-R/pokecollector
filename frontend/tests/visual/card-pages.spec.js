@@ -51,6 +51,24 @@ const duplicates = collection.map(item => ({
   total_value: (item.card.price_market || 0) * (item.quantity + 1),
 }))
 
+const deck = {
+  id: 1,
+  name: 'Visual Practice Deck',
+  target_size: 40,
+  description: 'A visual deck fixture',
+  current_card_count: 24,
+  remaining_to_target: 16,
+  over_target_by: 0,
+  missing_copy_count: 1,
+  status: 'under',
+  entries: [
+    { id: 1, card_id: 'visual-card-1', required_quantity: 8, owned_quantity: 8, shortage: 0, card: card(1, { supertype: 'Pokemon' }) },
+    { id: 2, card_id: 'visual-card-2', required_quantity: 10, owned_quantity: 9, shortage: 1, card: card(2, { supertype: 'Trainer' }) },
+    { id: 3, card_id: 'visual-card-3', required_quantity: 6, owned_quantity: 6, shortage: 0, card: card(3, { supertype: 'Energy' }) },
+  ],
+  copy_limit_warnings: [],
+}
+
 const trades = [{
   id: 7,
   partner_name: 'Misty',
@@ -146,6 +164,7 @@ async function installApiFixtures(page) {
       '/api/analytics/new-sets': [],
       '/api/products/': [],
       '/api/trades/': trades,
+      '/api/decks/1': deck,
     }
 
     await route.fulfill({
@@ -221,4 +240,23 @@ test('trade history opens a prefilled edit draft and submits immutable values', 
   expect(payload.incoming[0]).toMatchObject({ trade_item_id: 72, quantity: 1 })
   expect(payload.outgoing[0]).not.toHaveProperty('value_per_card')
   expect(payload.incoming[0]).not.toHaveProperty('value_per_card')
+})
+
+test('Deck editor presents a segmented gallery and keyboard-navigable viewer', async ({ page }) => {
+  await page.goto('/decks/1')
+  await expect(page.getByLabel('Deck composition')).toBeVisible()
+  await expect(page.getByText('Pokemon 8')).toBeVisible()
+  await expect(page.getByText('Trainer 10')).toBeVisible()
+  await expect(page.getByText('Energy 6')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open Visual card 1' })).toHaveCount(1)
+  await expect(page.getByText('Missing: 1')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Open Visual card 1' }).click()
+  await expect(page.getByRole('dialog', { name: 'Visual card 1' })).toBeVisible()
+  await page.getByRole('button', { name: 'Next card' }).click()
+  await expect(page.getByRole('dialog', { name: 'Pikachu with a deliberately long aligned card name' })).toBeVisible()
+  await page.keyboard.press('ArrowLeft')
+  await expect(page.getByRole('dialog', { name: 'Visual card 1' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toBeHidden()
 })

@@ -23,3 +23,40 @@ export function groupDeckEntries(entries = []) {
   })
   return groups
 }
+
+const CATEGORY_ORDER = ['Pokemon', 'Trainer', 'Energy', 'Other']
+
+export function deckComposition(entries = [], targetSize = 0) {
+  const groups = groupDeckEntries(entries)
+  const counts = Object.fromEntries(CATEGORY_ORDER.map(category => [
+    category,
+    groups[category].reduce((total, entry) => total + Number(entry.required_quantity || 0), 0),
+  ]))
+  let available = Math.max(Number(targetSize) || 0, 0)
+  const segments = CATEGORY_ORDER.map(category => {
+    const visibleCount = Math.min(counts[category], available)
+    available -= visibleCount
+    return { category, count: counts[category], visibleCount }
+  })
+  return { counts, segments, remaining: available }
+}
+
+export function sortDeckEntries(entries = []) {
+  const categoryIndex = new Map(CATEGORY_ORDER.map((category, index) => [category, index]))
+  const categoryFor = (entry) => Object.entries(groupDeckEntries([entry])).find(([, grouped]) => grouped.length)?.[0] || 'Other'
+  return [...entries].sort((left, right) => {
+    const categoryDifference = categoryIndex.get(categoryFor(left)) - categoryIndex.get(categoryFor(right))
+    if (categoryDifference) return categoryDifference
+    const nameDifference = (left.card?.name || '').localeCompare(right.card?.name || '')
+    if (nameDifference) return nameDifference
+    return `${left.card?.set_id || ''} ${left.card?.number || ''}`.localeCompare(`${right.card?.set_id || ''} ${right.card?.number || ''}`)
+  })
+}
+
+export function nextDeckCardIndex(index, total) {
+  return total ? (index + 1) % total : null
+}
+
+export function previousDeckCardIndex(index, total) {
+  return total ? (index - 1 + total) % total : null
+}

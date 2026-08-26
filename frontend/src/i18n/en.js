@@ -531,6 +531,15 @@ const en = {
     Trainer: 'Trainer',
     Energy: 'Energy',
     Other: 'Other',
+    composition: 'Deck composition',
+    emptyDeck: 'Add cards from your collection to start this deck.',
+    openCard: 'Open {name}',
+    increaseQuantity: 'Increase {name} quantity',
+    decreaseQuantity: 'Decrease {name} quantity',
+    removeCard: 'Remove {name}',
+    previousCard: 'Previous card',
+    nextCard: 'Next card',
+    set: 'Set',
   },
 
   // Analytics

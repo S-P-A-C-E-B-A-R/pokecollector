@@ -26,19 +26,28 @@ export function groupDeckEntries(entries = []) {
 
 const CATEGORY_ORDER = ['Pokemon', 'Trainer', 'Energy', 'Other']
 
-export function deckComposition(entries = [], targetSize = 0) {
+export function deckComposition(entries = [], targetSize = 0, compositionCounts = null) {
   const groups = groupDeckEntries(entries)
   const counts = Object.fromEntries(CATEGORY_ORDER.map(category => [
     category,
-    groups[category].reduce((total, entry) => total + Number(entry.required_quantity || 0), 0),
+    compositionCounts ? Math.max(Number(compositionCounts[category]) || 0, 0) : groups[category].reduce((total, entry) => total + Number(entry.required_quantity || 0), 0),
   ]))
-  let available = Math.max(Number(targetSize) || 0, 0)
+  const target = Math.max(Number(targetSize) || 0, 0)
+  const currentTotal = CATEGORY_ORDER.reduce((total, category) => total + counts[category], 0)
+  const isBelowTarget = target > 0 && currentTotal < target
+  const denominator = isBelowTarget ? target : currentTotal
+  const remaining = isBelowTarget ? target - currentTotal : 0
   const segments = CATEGORY_ORDER.map(category => {
-    const visibleCount = Math.min(counts[category], available)
-    available -= visibleCount
-    return { category, count: counts[category], visibleCount }
+    return {
+      category,
+      count: counts[category],
+      visibleCount: counts[category],
+      widthPercent: denominator > 0 ? (counts[category] / denominator) * 100 : 0,
+    }
   })
-  return { counts, segments, remaining: available }
+  const totalVisiblePercent = segments.reduce((total, segment) => total + segment.widthPercent, 0)
+  const remainingPercent = isBelowTarget ? (remaining / target) * 100 : 0
+  return { counts, segments, currentTotal, remaining, remainingPercent, totalVisiblePercent }
 }
 
 export function sortDeckEntries(entries = []) {

@@ -69,13 +69,22 @@ const deck = {
   over_target_by: 0,
   missing_copy_count: 1,
   status: 'under',
+  composition_counts: { Pokemon: 8, Trainer: 10, Energy: 6, Other: 0 },
   entries: [
     { id: 1, card_id: 'visual-card-1', required_quantity: 8, owned_quantity: 8, shortage: 0, card: card(1, { supertype: 'Pokemon' }) },
     { id: 2, card_id: 'visual-card-2', required_quantity: 10, owned_quantity: 9, shortage: 1, card: card(2, { supertype: 'Trainer' }) },
     { id: 3, card_id: 'visual-card-3', required_quantity: 6, owned_quantity: 6, shortage: 0, card: card(3, { supertype: 'Energy' }) },
   ],
-  copy_limit_warnings: [],
+  copy_limit_warnings: [{ name: 'Ultra Ball', quantity: 5 }],
 }
+
+const deckSummary = { ...deck, entries: [], copy_limit_warnings: [] }
+const deckSummaries = [
+  deckSummary,
+  { ...deckSummary, id: 2, name: 'Complete Deck', current_card_count: 40, remaining_to_target: 0, status: 'complete', composition_counts: { Pokemon: 12, Trainer: 15, Energy: 13, Other: 0 } },
+  { ...deckSummary, id: 3, name: 'Over Deck', current_card_count: 41, remaining_to_target: 0, over_target_by: 1, status: 'over', composition_counts: { Pokemon: 12, Trainer: 15, Energy: 14, Other: 0 } },
+  { ...deckSummary, id: 4, name: 'Large Over Deck', current_card_count: 55, remaining_to_target: 0, over_target_by: 15, status: 'over', composition_counts: { Pokemon: 26, Trainer: 15, Energy: 14, Other: 0 } },
+]
 
 const trades = [{
   id: 7,
@@ -172,6 +181,7 @@ async function installApiFixtures(page) {
       '/api/analytics/new-sets': [],
       '/api/products/': [],
       '/api/trades/': trades,
+      '/api/decks/': deckSummaries,
       '/api/decks/1': deck,
     }
 
@@ -252,12 +262,14 @@ test('trade history opens a prefilled edit draft and submits immutable values', 
 
 test('Deck editor presents a segmented gallery and keyboard-navigable viewer', async ({ page }) => {
   await page.goto('/decks/1')
-  await expect(page.getByLabel('Deck composition')).toBeVisible()
+  await expect(page.getByLabel('Deck composition').first()).toBeVisible()
   await expect(page.getByText('Pokemon 8')).toBeVisible()
   await expect(page.getByText('Trainer 10')).toBeVisible()
   await expect(page.getByText('Energy 6')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Open Visual card 1' })).toHaveCount(1)
   await expect(page.getByText('Missing: 1')).toBeVisible()
+  await expect(page.getByText('Ultra Ball: 5 copies may exceed the normal 4-copy limit.', { exact: true })).toBeVisible()
+  await expect(page.getByText('svgUltra Ball', { exact: true })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Open Visual card 1' }).click()
   await expect(page.getByRole('dialog', { name: 'Visual card 1' })).toBeVisible()
@@ -269,6 +281,131 @@ test('Deck editor presents a segmented gallery and keyboard-navigable viewer', a
   await expect(page.getByRole('dialog')).toBeHidden()
 })
 
+test('Deck list uses the shared segmented composition summary', async ({ page }) => {
+  await page.goto('/decks')
+  await expect(page.getByText('Visual Practice Deck')).toBeVisible()
+  await expect(page.getByLabel('Deck composition').first()).toBeVisible()
+  await expect(page.getByText('Pokemon 8')).toBeVisible()
+  await expect(page.getByText('Trainer 10')).toBeVisible()
+  await expect(page.getByText('Energy 6')).toBeVisible()
+  await expect(page.getByText('16 remaining')).toBeVisible()
+  await expect(page.getByText('40/40')).toBeVisible()
+  await expect(page.getByText('41/40')).toBeVisible()
+  await expect(page.getByText('55/40')).toBeVisible()
+  await expect(page.getByText('15 over target')).toBeVisible()
+  await expect(page.getByText('Pokemon 26')).toBeVisible()
+  await expect(page.getByLabel('Deck composition')).toHaveCount(4)
+})
+
+test('Deck editor refetches after a failed quantity mutation', async ({ page }) => {
+  await page.route('**/api/decks/1/entries/1', route => route.fulfill({
+    status: 422,
+    contentType: 'application/json',
+    body: JSON.stringify({ detail: 'Quantity update rejected' }),
+  }))
+  await page.goto('/decks/1')
+  await page.getByRole('button', { name: 'Increase Visual card 1 quantity' }).click()
+  await expect(page.getByText('Quantity update rejected')).toBeVisible()
+  await expect(page.getByLabel('Deck composition')).toBeVisible()
+})
+
+test('Deck editor batches rapid quantity changes and ignores stale responses', async ({ page }) => {
+  const rapidDeck = JSON.parse(JSON.stringify(deck))
+  rapidDeck.entries[0].required_quantity = 50
+  rapidDeck.current_card_count = 66
+  rapidDeck.over_target_by = 26
+  rapidDeck.status = 'over'
+  const requests = []
+
+  await page.route('**/api/decks/1', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rapidDeck) }))
+  await page.route('**/api/decks/1/entries/1', async route => {
+    const quantity = route.request().postDataJSON().required_quantity
+    requests.push(quantity)
+    if (requests.length === 1) await new Promise(resolve => setTimeout(resolve, 300))
+    rapidDeck.entries[0].required_quantity = quantity
+    rapidDeck.current_card_count = quantity + 16
+    rapidDeck.over_target_by = rapidDeck.current_card_count - 40
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rapidDeck) })
+  })
+
+  await page.goto('/decks/1')
+  const increase = page.getByRole('button', { name: 'Increase Visual card 1 quantity' })
+  await increase.evaluate(button => { for (let count = 0; count < 5; count += 1) button.click() })
+  await expect.poll(() => requests).toEqual([55])
+  await increase.evaluate(button => { for (let count = 0; count < 5; count += 1) button.click() })
+  await expect(page.getByText('x60', { exact: true })).toBeVisible()
+  await expect.poll(() => requests).toEqual([55, 60])
+  await expect(page.getByText('x60', { exact: true })).toBeVisible()
+
+  const decrease = page.getByRole('button', { name: 'Decrease Visual card 1 quantity' })
+  await decrease.evaluate(button => { for (let count = 0; count < 15; count += 1) button.click() })
+  await expect(page.getByText('x45', { exact: true })).toBeVisible()
+  await expect.poll(() => requests).toEqual([55, 60, 45])
+})
+
+test('Deck editor preserves rapid quantity changes above a 60-card target', async ({ page }) => {
+  const rapidDeck = JSON.parse(JSON.stringify(deck))
+  rapidDeck.target_size = 60
+  rapidDeck.entries[0].required_quantity = 50
+  rapidDeck.current_card_count = 66
+  rapidDeck.over_target_by = 6
+  rapidDeck.status = 'over'
+  const requests = []
+
+  await page.route('**/api/decks/1', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rapidDeck) }))
+  await page.route('**/api/decks/1/entries/1', async route => {
+    const quantity = route.request().postDataJSON().required_quantity
+    requests.push(quantity)
+    rapidDeck.entries[0].required_quantity = quantity
+    rapidDeck.current_card_count = quantity + 16
+    rapidDeck.over_target_by = Math.max(rapidDeck.current_card_count - 60, 0)
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rapidDeck) })
+  })
+
+  await page.goto('/decks/1')
+  const increase = page.getByRole('button', { name: 'Increase Visual card 1 quantity' })
+  await increase.evaluate(button => { for (let count = 0; count < 20; count += 1) button.click() })
+  await expect(page.getByText('x70', { exact: true })).toBeVisible()
+  await expect.poll(() => requests).toEqual([70])
+
+  const decrease = page.getByRole('button', { name: 'Decrease Visual card 1 quantity' })
+  await decrease.evaluate(button => { for (let count = 0; count < 15; count += 1) button.click() })
+  await expect(page.getByText('x55', { exact: true })).toBeVisible()
+  await expect.poll(() => requests).toEqual([70, 55])
+})
+
+test('Deck picker batches rapid adds without detail refetches', async ({ page }) => {
+  const updatedDeck = JSON.parse(JSON.stringify(deck))
+  const requests = []
+  let detailGets = 0
+  page.on('request', request => {
+    if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/decks/1') detailGets += 1
+  })
+  await page.route('**/api/decks/1/entries', async route => {
+    const quantity = route.request().postDataJSON().required_quantity
+    requests.push(quantity)
+    updatedDeck.entries.push({ id: 4, card_id: 'visual-card-4', required_quantity: quantity, owned_quantity: 2, shortage: Math.max(quantity - 2, 0), card: collection[3].card })
+    updatedDeck.current_card_count = 24 + quantity
+    updatedDeck.over_target_by = Math.max(updatedDeck.current_card_count - 40, 0)
+    updatedDeck.status = updatedDeck.over_target_by ? 'over' : 'under'
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(updatedDeck) })
+  })
+  await page.goto('/decks/1')
+  const add = page.getByRole('button', { name: 'Add Visual card 4' })
+  await add.evaluate(button => { for (let count = 0; count < 30; count += 1) button.click() })
+  await expect(page.getByText('In deck: 30', { exact: true })).toBeVisible()
+  await expect.poll(() => requests).toEqual([30])
+  expect(detailGets).toBe(1)
+})
+
+test('Deck picker reports a rate-limit response and remains usable', async ({ page }) => {
+  await page.route('**/api/decks/1/entries', route => route.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ error: 'Rate limit exceeded: 60 per 1 minute' }) }))
+  await page.goto('/decks/1')
+  await page.getByRole('button', { name: 'Add Visual card 4' }).click()
+  await expect(page.getByText('Too many requests. Please wait a moment and try again.')).toBeVisible()
+  await expect(page.getByLabel('Deck composition')).toBeVisible()
+})
+
 test('Deck editor filters the owned-card browser and requires an explicit add action', async ({ page }) => {
   await page.goto('/decks/1')
 
@@ -278,9 +415,9 @@ test('Deck editor filters the owned-card browser and requires an explicit add ac
 
   await page.getByRole('button', { name: 'Preview Pikachu with a deliberately long aligned card name' }).click()
   await expect(page.getByRole('button', { name: 'Add to deck' })).toBeVisible()
-  const addRequest = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/api/decks/1/entries'))
+  const addRequest = page.waitForRequest(request => request.method() === 'PATCH' && request.url().endsWith('/api/decks/1/entries/2'))
   await page.getByRole('button', { name: 'Add to deck' }).click()
-  expect((await addRequest).postDataJSON()).toEqual({ card_id: 'visual-card-2', required_quantity: 1 })
+  expect((await addRequest).postDataJSON()).toEqual({ required_quantity: 11 })
 })
 
 test('Deck editor opens a selected card preview in a mobile sheet', async ({ page }) => {

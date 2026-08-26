@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { createDeck, getDecks } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
 import { deckProgress } from '../utils/deckProgress'
+import DeckCompositionBar from '../components/decks/DeckCompositionBar'
 
 export default function Decks() {
   const { t } = useSettings()
@@ -47,8 +48,8 @@ export default function Decks() {
       return <button key={deck.id} onClick={() => navigate(`/decks/${deck.id}`)} className="card min-h-36 text-left transition-colors hover:border-brand-red/40">
         <div className="flex items-start justify-between gap-2"><h2 className="truncate font-semibold text-text-primary">{deck.name}</h2><span className={`shrink-0 text-xs font-bold ${progress.status === 'complete' ? 'text-green' : progress.status === 'over' ? 'text-brand-red' : 'text-yellow'}`}>{progress.current}/{progress.target}</span></div>
         {deck.description && <p className="mt-1 line-clamp-2 text-xs text-text-muted">{deck.description}</p>}
-        <div className="mt-4 h-2 overflow-hidden rounded-full bg-bg-elevated"><div className={`h-full ${progress.status === 'over' ? 'bg-brand-red' : progress.status === 'complete' ? 'bg-green' : 'bg-yellow'}`} style={{ width: `${Math.min(progress.current / progress.target * 100, 100)}%` }} /></div>
         <p className="mt-2 text-xs text-text-secondary">{progress.status === 'complete' ? t('decks.complete') : progress.status === 'over' ? label('decks.over', { count: progress.over }) : label('decks.remaining', { count: progress.remaining })}{deck.missing_copy_count > 0 && ` · ${label('decks.missingCopies', { count: deck.missing_copy_count })}`}</p>
+        <div className="mt-3"><DeckCompositionBar entries={[]} compositionCounts={deck.composition_counts} progress={progress} t={t} label={label} compact /></div>
         {deck.updated_at && <p className="mt-1 text-[11px] text-text-muted">{label('decks.modified', { date: new Date(deck.updated_at).toLocaleDateString() })}</p>}
       </button>
     })}</div>}

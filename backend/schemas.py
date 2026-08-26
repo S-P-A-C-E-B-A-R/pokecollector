@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Any, Literal
+from typing import Optional, List, Any, Literal, Dict
 from datetime import datetime, date
 
 
@@ -328,6 +328,7 @@ class DeckResponse(BaseModel):
     over_target_by: int = 0
     missing_copy_count: int = 0
     status: Literal["under", "complete", "over"] = "under"
+    composition_counts: Dict[str, int] = Field(default_factory=lambda: {"Pokemon": 0, "Trainer": 0, "Energy": 0, "Other": 0})
     entries: List[DeckEntryResponse] = Field(default_factory=list)
     copy_limit_warnings: List[DeckCopyLimitWarning] = Field(default_factory=list)
 

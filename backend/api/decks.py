@@ -12,6 +12,20 @@ from schemas import DeckCreate, DeckEntryCreate, DeckEntryUpdate, DeckResponse, 
 router = APIRouter()
 
 
+COMPOSITION_CATEGORIES = ("Pokemon", "Trainer", "Energy", "Other")
+
+
+def _composition_category(supertype: str | None) -> str:
+    normalized = str(supertype or "").strip().casefold()
+    if normalized in ("pokemon", "pokémon"):
+        return "Pokemon"
+    if normalized == "trainer":
+        return "Trainer"
+    if normalized == "energy":
+        return "Energy"
+    return "Other"
+
+
 def _deck_or_404(db: Session, deck_id: int, user_id: int, with_entries: bool = False) -> Deck:
     query = db.query(Deck).filter(Deck.id == deck_id, Deck.user_id == user_id)
     if with_entries:
@@ -50,8 +64,8 @@ def _copy_limit_warnings(entries: list[DeckEntry]) -> list[dict]:
         if any(not card or not card.supertype for card in cards):
             continue
         is_basic_energy = all(
-            card.supertype.lower() == "energy"
-            and any(str(subtype).lower() == "basic" for subtype in (card.subtypes or []))
+            _composition_category(card.supertype) == "Energy"
+            and any(str(subtype).strip().casefold() == "basic" for subtype in (card.subtypes or []))
             for card in cards
         )
         quantity = sum(int(entry.required_quantity or 0) for entry in named_entries)
@@ -65,6 +79,9 @@ def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, i
     if owned_quantities is None:
         owned_quantities = {}
     current_card_count = sum(int(entry.required_quantity or 0) for entry in entries)
+    composition_counts = {category: 0 for category in COMPOSITION_CATEGORIES}
+    for entry in entries:
+        composition_counts[_composition_category(entry.card.supertype if entry.card else None)] += int(entry.required_quantity or 0)
     missing_copy_count = sum(
         max(int(entry.required_quantity or 0) - int(owned_quantities.get(entry.card_id, 0)), 0)
         for entry in entries
@@ -88,6 +105,7 @@ def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, i
         over_target_by=max(current_card_count - deck.target_size, 0),
         missing_copy_count=missing_copy_count,
         status=status,
+        composition_counts=composition_counts,
         entries=[
             {
                 "id": entry.id,
@@ -116,6 +134,15 @@ def get_decks(current_user: User = Depends(get_current_user), db: Session = Depe
             DeckEntry.deck_id.in_(deck_ids)
         ).group_by(DeckEntry.deck_id).all()
     }
+    composition_counts = {deck_id: {category: 0 for category in COMPOSITION_CATEGORIES} for deck_id in deck_ids}
+    for deck_id, supertype, quantity in db.query(
+        DeckEntry.deck_id,
+        Card.supertype,
+        func.coalesce(func.sum(DeckEntry.required_quantity), 0),
+    ).join(Card, DeckEntry.card_id == Card.id).filter(
+        DeckEntry.deck_id.in_(deck_ids)
+    ).group_by(DeckEntry.deck_id, Card.supertype).all():
+        composition_counts[deck_id][_composition_category(supertype)] += int(quantity or 0)
     owned = db.query(
         CollectionItem.card_id.label("card_id"),
         func.coalesce(func.sum(CollectionItem.quantity), 0).label("owned_quantity"),
@@ -149,6 +176,7 @@ def get_decks(current_user: User = Depends(get_current_user), db: Session = Depe
             over_target_by=max(current_card_count - deck.target_size, 0),
             missing_copy_count=shortages.get(deck.id, 0),
             status=status,
+            composition_counts=composition_counts[deck.id],
         ))
     return responses
 

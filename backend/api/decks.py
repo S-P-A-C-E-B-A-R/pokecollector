@@ -1,6 +1,9 @@
 import datetime
+import csv
+import io
+import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session, joinedload
 
@@ -251,6 +254,29 @@ def duplicate_deck(deck_id: int, current_user: User = Depends(get_current_user),
     duplicate = _deck_or_404(db, duplicate.id, current_user.id, with_entries=True)
     owned = _owned_quantities(db, current_user.id, [entry.card_id for entry in duplicate.entries])
     return _deck_response(duplicate, owned, standard_legal_fingerprints=_standard_legal_fingerprints(db))
+
+
+@router.get("/allocation/export.csv")
+def export_allocation_csv(mode: str = Query("all", pattern="^(all|free|conflicts)$"), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    decks = db.query(Deck).options(joinedload(Deck.entries)).filter(Deck.user_id == current_user.id).all()
+    owned = _owned_quantities(db, current_user.id, [item.card_id for deck in decks for item in deck.entries])
+    allocation = allocation_for_decks(decks, owned)
+    cards = db.query(Card).filter(Card.id.in_(owned.keys())).all() if owned else []
+    output = io.StringIO(newline="")
+    fields = ["card_id", "tcg_card_id", "name", "set_id", "set_name", "series", "card_number", "card_language", "quantity_owned", "quantity_reserved", "quantity_free", "quantity_overcommitted", "inventory_status", "reserved_decks", "supertype", "subtypes", "trainer_type", "energy_type", "dex_ids", "stage", "evolve_from", "suffix", "hp", "types", "retreat", "attacks_json", "attacks_text", "abilities_json", "abilities_text", "weaknesses", "resistances", "card_effect", "regulation_mark", "playable_fingerprint", "rarity", "artist", "release_date", "variants_normal", "variants_reverse", "variants_holo", "variants_first_edition"]
+    writer = csv.DictWriter(output, fieldnames=fields)
+    writer.writeheader()
+    for card in cards:
+        data = allocation.get(card.id, {})
+        owned_quantity, reserved = int(owned.get(card.id, 0)), int(data.get("reserved_total", 0))
+        free, over = max(owned_quantity - reserved, 0), max(reserved - owned_quantity, 0)
+        if mode == "free" and not free or mode == "conflicts" and not over:
+            continue
+        status = "OVERCOMMITTED" if over else "UNRESERVED" if not reserved else "FULLY_RESERVED" if not free else "PARTIALLY_RESERVED"
+        attacks, abilities = card.attacks or [], card.abilities or []
+        writer.writerow({"card_id": card.id, "tcg_card_id": card.tcg_card_id, "name": card.name, "set_id": card.set_id, "card_number": card.number, "card_language": card.lang, "quantity_owned": owned_quantity, "quantity_reserved": reserved, "quantity_free": free, "quantity_overcommitted": over, "inventory_status": status, "reserved_decks": json.dumps([{"deck_id": item["deck_id"], "deck_name": item["name"], "quantity": item["quantity"], "target_size": next(deck.target_size for deck in decks if deck.id == item["deck_id"]), "format": next(deck.format for deck in decks if deck.id == item["deck_id"])} for item in data.get("decks", [])]), "supertype": card.supertype, "subtypes": json.dumps(card.subtypes or []), "trainer_type": card.trainer_type, "energy_type": card.energy_type, "dex_ids": json.dumps(card.dex_ids or []), "stage": card.stage, "evolve_from": card.evolve_from, "suffix": card.suffix, "hp": card.hp, "types": json.dumps(card.types or []), "retreat": card.retreat, "attacks_json": json.dumps(attacks), "attacks_text": "\n".join(str(item.get("name", "")) for item in attacks if isinstance(item, dict)), "abilities_json": json.dumps(abilities), "abilities_text": "\n".join(str(item.get("name", "")) for item in abilities if isinstance(item, dict)), "weaknesses": json.dumps(card.weaknesses or []), "resistances": json.dumps(card.resistances or []), "card_effect": card.card_effect, "regulation_mark": card.regulation_mark, "playable_fingerprint": card.playable_fingerprint, "rarity": card.rarity, "artist": card.artist, "variants_normal": card.variants_normal, "variants_reverse": card.variants_reverse, "variants_holo": card.variants_holo, "variants_first_edition": card.variants_first_edition})
+    filename = f"pokecollector-{'free-' if mode == 'free' else 'conflicts-' if mode == 'conflicts' else ''}inventory-{datetime.date.today().isoformat()}.csv"
+    return Response(output.getvalue(), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @router.get("/allocation")

@@ -219,6 +219,18 @@ async function installApiFixtures(page) {
       return
     }
 
+    if (path === '/api/decks/allocation/export.csv') {
+      const mode = url.searchParams.get('mode') || 'all'
+      const filename = mode === 'free' ? 'pokecollector-free-inventory-2026-08-27.csv' : mode === 'conflicts' ? 'pokecollector-inventory-conflicts-2026-08-27.csv' : 'pokecollector-inventory-2026-08-27.csv'
+      await route.fulfill({ status: 200, contentType: 'text/csv; charset=utf-8', headers: { 'Content-Disposition': `attachment; filename="${filename}"` }, body: 'card_id,name\nvisual-card-1,"Pikachu, Pokémon"\n' })
+      return
+    }
+
+    if (path === '/api/decks/allocation') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ summary: { reserved_decks: 1, conflicting_cards: 1, missing_copies: 1 }, items: [{ card_id: 'visual-card-1', name: 'Visual card 1', owned: 3, reserved: 4, free: 0, shortage: 1, decks: [{ deck_id: 1, name: 'Visual Practice Deck', quantity: 4 }] }] }) })
+      return
+    }
+
     if (path === '/api/decks/1/duplicate') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...deck, id: 99, name: 'Visual Practice Deck (Copy)' }) })
       return
@@ -343,6 +355,19 @@ test('deck editor duplicates a deck into an independent editor route', async ({ 
   await page.getByRole('button', { name: 'Duplicate' }).click()
   await page.waitForURL('**/decks/99')
   await expect(page.locator('input[name="name"]')).toHaveValue('Visual Practice Deck (Copy)')
+})
+
+test('deck inventory export menu downloads server-named CSV files', async ({ page }) => {
+  await page.goto('/decks')
+  await page.getByRole('button', { name: 'Export Inventory CSV' }).click()
+  const download = page.waitForEvent('download')
+  await page.getByRole('menuitem', { name: 'All inventory' }).click()
+  await expect((await download).suggestedFilename()).toBe('pokecollector-inventory-2026-08-27.csv')
+  await page.goto('/decks/inventory')
+  await page.getByRole('button', { name: 'Export Inventory CSV' }).click()
+  const conflicts = page.waitForEvent('download')
+  await page.getByRole('menuitem', { name: 'Conflicts only' }).click()
+  await expect((await conflicts).suggestedFilename()).toBe('pokecollector-inventory-conflicts-2026-08-27.csv')
 })
 
 test('real Collection list keeps shared artwork, identity, and fallback treatment', async ({ page }) => {

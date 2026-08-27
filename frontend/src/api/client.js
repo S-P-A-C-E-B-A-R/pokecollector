@@ -213,6 +213,7 @@ export const updateDeckAssemblyProgress = (deckId, data) => api.put(`/decks/${de
 export const resetDeckAssemblyProgress = (deckId) => api.delete(`/decks/${deckId}/assembly-progress`)
 export const getDeckProbability = (deckId, params = {}) => api.get(`/decks/${deckId}/probability`, { params })
 export const getDeckAllocation = (params = {}) => api.get('/decks/allocation', { params })
+export const exportDeckAllocationCsv = (mode) => api.get('/decks/allocation/export.csv', { params: { mode }, responseType: 'blob' })
 
 // Sets
 export const getSets = (params) => api.get('/sets/', { params })

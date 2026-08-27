@@ -8,6 +8,7 @@ import { useSettings } from '../contexts/SettingsContext'
 import { deckProgress } from '../utils/deckProgress'
 import DeckCompositionBar from '../components/decks/DeckCompositionBar'
 import DeckValidationPanel from '../components/decks/DeckValidationPanel'
+import InventoryExportMenu from '../components/decks/InventoryExportMenu'
 
 export default function Decks() {
   const { t } = useSettings()
@@ -37,7 +38,7 @@ export default function Decks() {
   return <div className="space-y-4 pb-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 className="text-xl font-bold text-text-primary">{t('decks.title')}</h1><p className="mt-1 text-sm text-text-secondary">{t('decks.subtitle')}</p></div>
-      <div className="flex gap-2"><button className="btn-secondary" onClick={() => navigate('/decks/inventory')}><PackageOpen size={16} /> Inventory Usage</button><button className="btn-secondary" disabled={decks.length < 2} onClick={() => navigate(`/decks/compare?left=${decks[0]?.id}&right=${decks[1]?.id}`)}><GitCompare size={16} /> Compare</button><button className="btn-primary" onClick={() => setCreating(value => !value)}><Plus size={16} /> {t('decks.newDeck')}</button></div>
+      <div className="flex gap-2"><button className="btn-secondary" onClick={() => navigate('/decks/inventory')}><PackageOpen size={16} /> Inventory Usage</button><InventoryExportMenu /><button className="btn-secondary" disabled={decks.length < 2} onClick={() => navigate(`/decks/compare?left=${decks[0]?.id}&right=${decks[1]?.id}`)}><GitCompare size={16} /> Compare</button><button className="btn-primary" onClick={() => setCreating(value => !value)}><Plus size={16} /> {t('decks.newDeck')}</button></div>
     </div>
     {creating && <form onSubmit={submit} className="card grid gap-3 sm:grid-cols-2">
       <input className="input sm:col-span-2" autoFocus required value={name} onChange={event => setName(event.target.value)} placeholder={t('decks.name')} />

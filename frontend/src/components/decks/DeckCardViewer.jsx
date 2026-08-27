@@ -31,7 +31,7 @@ export default function DeckCardViewer({ entries, activeIndex, onClose, onPrevio
         </div>
         <div className="space-y-3 text-sm">
           <div><p className="text-xs uppercase tracking-wider text-text-muted">{t('decks.set')}</p><p className="font-medium text-text-primary">{entry.card?.set_ref?.name || entry.card?.set_id || '-'}</p><p className="text-text-secondary">{entry.card?.number || '-'}</p></div>
-          <div className="grid grid-cols-2 gap-2 border-t border-border pt-3"><p>{label('decks.deckQuantity', { count: entry.required_quantity })}</p><p>{label('decks.owned', { count: entry.owned_quantity })}</p></div>
+          <div className="grid grid-cols-2 gap-2 border-t border-border pt-3"><p>Required: {entry.required_quantity}</p><p>Owned: {entry.owned_quantity}</p><p>Reserved here: {entry.reserved_in_this_deck || 0}</p><p>Reserved elsewhere: {entry.reserved_elsewhere || 0}</p><p>Available: {entry.available_quantity ?? entry.owned_quantity}</p><p>Missing: {entry.shortage || 0}</p></div>
           {entry.shortage > 0 && <p className="rounded-lg bg-brand-red/10 px-3 py-2 font-medium text-brand-red">{label('decks.shortage', { count: entry.shortage })}</p>}
           <p className="text-xs text-text-muted">{activeIndex + 1} / {entries.length}</p>
         </div>

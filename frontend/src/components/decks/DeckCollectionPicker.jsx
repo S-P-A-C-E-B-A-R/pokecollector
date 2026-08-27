@@ -32,7 +32,8 @@ export default function DeckCollectionPicker({ collection, entries, onAdd, optim
   }, [filteredCards, isDesktop, selectedId])
 
   const reset = () => { setSearch(''); setType(''); setSet(''); setLanguage('') }
-  const preview = selected && <DeckCollectionPreview item={selected} deckQuantity={optimisticAddQuantities[selected.card.id] ?? quantitiesByCard[selected.card.id] ?? 0} onAdd={onAdd} isAdding={pendingCardIds?.has(selected.card.id)} t={t} label={label} compact={!isDesktop} />
+  const allocations = useMemo(() => Object.fromEntries(entries.map(entry => [entry.card_id, entry])), [entries])
+  const preview = selected && <DeckCollectionPreview item={selected} deckQuantity={optimisticAddQuantities[selected.card.id] ?? quantitiesByCard[selected.card.id] ?? 0} allocation={allocations[selected.card.id]} onAdd={onAdd} isAdding={pendingCardIds?.has(selected.card.id)} t={t} label={label} compact={!isDesktop} />
 
   return (
     <section className="card space-y-3">

@@ -293,6 +293,7 @@ class DeckUpdate(BaseModel):
     target_size: Optional[Literal[20, 40, 60]] = None
     description: Optional[str] = None
     format: Optional[Literal["Standard", "Expanded", "Unlimited", "Casual"]] = None
+    inventory_state: Optional[Literal["planning", "reserved"]] = None
 
 
 class DeckEntryCreate(BaseModel):
@@ -320,6 +321,9 @@ class DeckEntryResponse(BaseModel):
     required_quantity: int
     owned_quantity: int = 0
     shortage: int = 0
+    reserved_elsewhere: int = 0
+    reserved_in_this_deck: int = 0
+    available_quantity: int = 0
     card: Optional[CardWithSet] = None
 
 
@@ -349,6 +353,9 @@ class DeckResponse(BaseModel):
     target_size: Literal[20, 40, 60]
     description: Optional[str] = None
     format: Literal["Standard", "Expanded", "Unlimited", "Casual"] = "Casual"
+    inventory_state: Literal["planning", "reserved"] = "planning"
+    shared_conflict_count: int = 0
+    shared_missing_copy_count: int = 0
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     current_card_count: int = 0

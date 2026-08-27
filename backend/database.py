@@ -594,6 +594,7 @@ def _run_migrations(conn):
         "CREATE INDEX IF NOT EXISTS ix_deck_assembly_progress_deck_entry_id ON deck_assembly_progress(deck_entry_id)",
         # v62: Deck format is validation metadata; legacy decks remain casual.
         "ALTER TABLE decks ADD COLUMN IF NOT EXISTS format VARCHAR NOT NULL DEFAULT 'Casual'",
+        "ALTER TABLE decks ADD COLUMN IF NOT EXISTS inventory_state VARCHAR NOT NULL DEFAULT 'planning'",
     ]
     for stmt in migrations:
         try:

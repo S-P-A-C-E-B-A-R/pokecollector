@@ -32,7 +32,7 @@ export default function DeckEditor() {
   const { data: deck, isLoading } = useQuery({ queryKey: ['deck', deckId], queryFn: () => getDeck(deckId).then(response => response.data) })
   const { data: collection = [] } = useQuery({ queryKey: ['deck-picker-collection'], queryFn: () => getCollection({}).then(response => response.data) })
 
-  const onSuccess = () => invalidateDeck(queryClient, deckId)
+  const onSuccess = () => { invalidateDeck(queryClient, deckId); queryClient.invalidateQueries({ queryKey: ['deck-allocation'] }) }
   const updateMutation = useMutation({ mutationFn: data => updateDeck(deckId, data), onSuccess: () => { onSuccess(); toast.success(t('decks.updated')) }, onError: error => toast.error(error.response?.data?.detail || t('decks.updateFailed')) })
   const showDeckMutationError = error => toast.error(error.response?.status === 429 ? t('decks.tooManyRequests') : error.response?.data?.detail || error.response?.data?.error || t('common.error'))
   const handleDeckMutationError = error => { onSuccess(); showDeckMutationError(error) }
@@ -49,7 +49,7 @@ export default function DeckEditor() {
   const saveDetails = event => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
-    updateMutation.mutate({ name: form.get('name'), description: form.get('description') || null, target_size: Number(form.get('target_size')), format: form.get('format') })
+    updateMutation.mutate({ name: form.get('name'), description: form.get('description') || null, target_size: Number(form.get('target_size')), format: form.get('format'), inventory_state: form.get('inventory_state') })
   }
   const previousCard = () => setViewerIndex(index => previousDeckCardIndex(index, entries.length))
   const nextCard = () => setViewerIndex(index => nextDeckCardIndex(index, entries.length))
@@ -64,10 +64,11 @@ export default function DeckEditor() {
       <form onSubmit={saveDetails} className="card grid gap-3 md:grid-cols-[1fr_10rem_10rem_auto] md:items-end">
         <label className="text-xs text-text-muted">{t('decks.name')}<input name="name" className="input mt-1" defaultValue={deck.name} required /></label>
         <label className="text-xs text-text-muted">{t('decks.target')}<select name="target_size" className="select mt-1" defaultValue={deck.target_size}>{[20, 40, 60].map(size => <option key={size} value={size}>{size}</option>)}</select></label>
-        <label className="text-xs text-text-muted">{t('decks.format')}<select name="format" className="select mt-1" defaultValue={deck.format || 'Casual'}>{['Casual', 'Standard', 'Expanded', 'Unlimited'].map(format => <option key={format} value={format}>{t(`decks.format${format}`)}</option>)}</select></label>
+         <label className="text-xs text-text-muted">{t('decks.format')}<select name="format" className="select mt-1" defaultValue={deck.format || 'Casual'}>{['Casual', 'Standard', 'Expanded', 'Unlimited'].map(format => <option key={format} value={format}>{t(`decks.format${format}`)}</option>)}</select></label><label className="text-xs text-text-muted">Inventory usage<select name="inventory_state" className="select mt-1" defaultValue={deck.inventory_state || 'planning'}><option value="planning">Planning</option><option value="reserved">Reserved</option></select></label>
         <button className="btn-primary" disabled={updateMutation.isPending}>{t('common.save')}</button>
         <label className="text-xs text-text-muted md:col-span-4">{t('decks.description')}<input name="description" className="input mt-1" defaultValue={deck.description || ''} /></label>
-      </form>
+       </form>
+       {deck.shared_missing_copy_count > 0 && <p className="rounded-lg bg-yellow/10 px-3 py-2 text-sm text-yellow">Shared inventory conflict: {deck.shared_missing_copy_count} copies are unavailable after other reservations.</p>}
 
       <div className="flex gap-2" role="tablist"><button type="button" role="tab" aria-selected={view === 'editor'} className={view === 'editor' ? 'btn-primary' : 'btn-secondary'} onClick={() => setView('editor')}>{t('decks.editor')}</button><button type="button" role="tab" aria-selected={view === 'analytics'} className={view === 'analytics' ? 'btn-primary' : 'btn-secondary'} onClick={() => setView('analytics')}>{t('decks.analytics')}</button></div>
 

@@ -12,6 +12,7 @@ from services.deck_validation import is_basic_energy, validate_deck
 from services.deck_analysis import analyze_deck
 from services.deck_probability import analyze_deck_probability
 from services.deck_comparison import compare_decks
+from services.deck_allocation import allocation_for_decks
 from services.standard_legality import is_standard_regulation_mark
 
 router = APIRouter()
@@ -87,16 +88,17 @@ def _copy_limit_warnings(entries: list[DeckEntry]) -> list[dict]:
     return sorted(warnings, key=lambda warning: warning["name"].lower())
 
 
-def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, include_entries: bool = True, standard_legal_fingerprints: set[str] | None = None) -> DeckResponse:
+def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, include_entries: bool = True, standard_legal_fingerprints: set[str] | None = None, allocation: dict | None = None) -> DeckResponse:
     entries = list(deck.entries) if include_entries else []
     if owned_quantities is None:
         owned_quantities = {}
+    allocation = allocation or {}
     current_card_count = sum(int(entry.required_quantity or 0) for entry in entries)
     composition_counts = {category: 0 for category in COMPOSITION_CATEGORIES}
     for entry in entries:
         composition_counts[_composition_category(entry.card.supertype if entry.card else None)] += int(entry.required_quantity or 0)
     missing_copy_count = sum(
-        max(int(entry.required_quantity or 0) - int(owned_quantities.get(entry.card_id, 0)), 0)
+        max(int(entry.required_quantity or 0) - int(allocation.get(entry.card_id, {}).get("available_to_this_deck", owned_quantities.get(entry.card_id, 0))), 0)
         for entry in entries
     )
     if current_card_count < deck.target_size:
@@ -112,6 +114,9 @@ def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, i
         target_size=deck.target_size,
         description=deck.description,
         format=deck.format or "Casual",
+        inventory_state=deck.inventory_state or "planning",
+        shared_conflict_count=sum(1 for entry in entries if allocation.get(entry.card_id, {}).get("conflict", 0)),
+        shared_missing_copy_count=missing_copy_count,
         created_at=deck.created_at,
         updated_at=deck.updated_at,
         current_card_count=current_card_count,
@@ -126,7 +131,10 @@ def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, i
                 "card_id": entry.card_id,
                 "required_quantity": entry.required_quantity,
                 "owned_quantity": int(owned_quantities.get(entry.card_id, 0)),
-                "shortage": max(entry.required_quantity - int(owned_quantities.get(entry.card_id, 0)), 0),
+                "shortage": max(entry.required_quantity - int(allocation.get(entry.card_id, {}).get("available_to_this_deck", owned_quantities.get(entry.card_id, 0))), 0),
+                "reserved_elsewhere": allocation.get(entry.card_id, {}).get("reserved_in_other_decks", 0),
+                "reserved_in_this_deck": int(entry.required_quantity or 0) if deck.inventory_state == "reserved" else 0,
+                "available_quantity": allocation.get(entry.card_id, {}).get("available_to_this_deck", owned_quantities.get(entry.card_id, 0)),
                 "card": entry.card,
             }
             for entry in entries
@@ -145,6 +153,7 @@ def get_decks(current_user: User = Depends(get_current_user), db: Session = Depe
 
     deck_ids = [deck.id for deck in decks]
     owned_quantities = _owned_quantities(db, current_user.id, [entry.card_id for deck in decks for entry in deck.entries])
+    allocations_by_deck = {deck.id: allocation_for_decks(decks, owned_quantities, deck.id) for deck in decks}
     standard_legal_fingerprints = _standard_legal_fingerprints(db)
     totals = {
         deck_id: int(quantity or 0)
@@ -188,6 +197,9 @@ def get_decks(current_user: User = Depends(get_current_user), db: Session = Depe
             target_size=deck.target_size,
             description=deck.description,
             format=deck.format or "Casual",
+            inventory_state=deck.inventory_state or "planning",
+            shared_conflict_count=sum(1 for entry in deck.entries if allocations_by_deck[deck.id].get(entry.card_id, {}).get("conflict", 0)),
+            shared_missing_copy_count=sum(max(int(entry.required_quantity or 0) - int(allocations_by_deck[deck.id].get(entry.card_id, {}).get("available_to_this_deck", owned_quantities.get(entry.card_id, 0))), 0) for entry in deck.entries),
             created_at=deck.created_at,
             updated_at=deck.updated_at,
             current_card_count=current_card_count,
@@ -231,7 +243,7 @@ def compare_owned_decks(
 @router.post("/{deck_id}/duplicate", response_model=DeckResponse)
 def duplicate_deck(deck_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     source = _deck_or_404(db, deck_id, current_user.id, with_entries=True)
-    duplicate = Deck(name=f"{source.name} (Copy)", target_size=source.target_size, description=source.description, format=source.format, user_id=current_user.id)
+    duplicate = Deck(name=f"{source.name} (Copy)", target_size=source.target_size, description=source.description, format=source.format, inventory_state="planning", user_id=current_user.id)
     db.add(duplicate)
     db.flush()
     db.add_all([DeckEntry(deck_id=duplicate.id, card_id=entry.card_id, required_quantity=entry.required_quantity) for entry in source.entries])
@@ -241,11 +253,22 @@ def duplicate_deck(deck_id: int, current_user: User = Depends(get_current_user),
     return _deck_response(duplicate, owned, standard_legal_fingerprints=_standard_legal_fingerprints(db))
 
 
+@router.get("/allocation")
+def get_allocation(conflicts_only: bool = Query(True), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    decks = db.query(Deck).options(joinedload(Deck.entries).joinedload(DeckEntry.card)).filter(Deck.user_id == current_user.id).all()
+    owned = _owned_quantities(db, current_user.id, [entry.card_id for deck in decks for entry in deck.entries])
+    allocations = allocation_for_decks(decks, owned)
+    items = [dict({"card_id": card_id, "name": next((entry.card.name for deck in decks for entry in deck.entries if entry.card_id == card_id and entry.card), card_id), "owned": data["owned_quantity"], "reserved": data["reserved_total"], "free": max(data["owned_quantity"] - data["reserved_total"], 0), "shortage": data["conflict"]}, **data) for card_id, data in allocations.items() if data["reserved_total"] and (not conflicts_only or data["conflict"])]
+    return {"summary": {"reserved_decks": sum(deck.inventory_state == "reserved" for deck in decks), "conflicting_cards": len([item for item in items if item["shortage"]]), "missing_copies": sum(item["shortage"] for item in items)}, "items": sorted(items, key=lambda item: (-item["shortage"], item["name"].casefold()))}
+
+
 @router.get("/{deck_id}", response_model=DeckResponse)
 def get_deck(deck_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     deck = _deck_or_404(db, deck_id, current_user.id, with_entries=True)
-    owned_quantities = _owned_quantities(db, current_user.id, [entry.card_id for entry in deck.entries])
-    return _deck_response(deck, owned_quantities, standard_legal_fingerprints=_standard_legal_fingerprints(db))
+    all_decks = db.query(Deck).options(joinedload(Deck.entries)).filter(Deck.user_id == current_user.id).all()
+    owned_quantities = _owned_quantities(db, current_user.id, [entry.card_id for item in all_decks for entry in item.entries])
+    allocation = allocation_for_decks(all_decks, owned_quantities, deck.id)
+    return _deck_response(deck, owned_quantities, standard_legal_fingerprints=_standard_legal_fingerprints(db), allocation=allocation)
 
 
 @router.get("/{deck_id}/probability")
@@ -317,6 +340,8 @@ def update_deck(deck_id: int, payload: DeckUpdate, current_user: User = Depends(
         deck.description = payload.description
     if "format" in fields_set:
         deck.format = payload.format
+    if "inventory_state" in fields_set:
+        deck.inventory_state = payload.inventory_state
     deck.updated_at = datetime.datetime.utcnow()
     db.commit()
     db.refresh(deck)

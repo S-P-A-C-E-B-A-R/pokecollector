@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Copy, Download, Minus, Plus, Printer, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getDeck, getDeckAssemblyProgress, resetDeckAssemblyProgress, updateDeckAssemblyProgress } from '../api/client'
+import { getDeck, getDeckAssemblyProgress, resetDeckAssemblyProgress, updateDeck, updateDeckAssemblyProgress } from '../api/client'
 import DeckCardViewer from '../components/decks/DeckCardViewer'
 import { useConfirmDialog } from '../contexts/ConfirmDialogContext'
 import { useSettings } from '../contexts/SettingsContext'
@@ -32,6 +32,7 @@ export default function DeckAssembly() {
     onSuccess: () => queryClient.setQueryData(progressKey(deckId), []),
     onError: error => toast.error(error.response?.data?.detail || t('common.error')),
   })
+  const reserveDeck = useMutation({ mutationFn: () => updateDeck(deckId, { inventory_state: 'reserved' }), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['deck', deckId] }) })
 
   if (isLoading) return <div className="skeleton h-96 rounded-xl" />
   if (!deck) return null
@@ -65,7 +66,7 @@ export default function DeckAssembly() {
       </div>
 
       <header className="sticky top-0 z-10 -mx-1 space-y-3 rounded-xl border border-border bg-bg-primary/95 p-4 shadow-sm backdrop-blur print:static print:border-0 print:bg-white print:p-0 print:shadow-none">
-        <div><h1 className="text-2xl font-bold text-text-primary">{t('decks.buildDeck')}: {deck.name}</h1><p className="text-sm text-text-muted">{t('decks.target')}: {summary.required}</p></div>
+        <div><h1 className="text-2xl font-bold text-text-primary">{t('decks.buildDeck')}: {deck.name}</h1><p className="text-sm text-text-muted">{t('decks.target')}: {summary.required} · Inventory status: {deck.inventory_state === 'reserved' ? 'Reserved' : 'Planning'}</p>{deck.inventory_state !== 'reserved' && <button className="btn-secondary mt-2" onClick={() => reserveDeck.mutate()} disabled={reserveDeck.isPending}>Reserve collection for this deck</button>}</div>
         {!deck.validation?.valid && <p className="no-print rounded-lg bg-brand-red/10 px-3 py-2 text-sm font-medium text-brand-red">{label('decks.validationErrors', { count: deck.validation?.errors?.length || 0 })}</p>}
         <div className="h-3 overflow-hidden rounded-full bg-bg-elevated" role="progressbar" aria-label={t('decks.pulledProgress')} aria-valuenow={summary.pulled} aria-valuemax={summary.required}><div className="h-full rounded-full bg-emerald-500 transition-[width]" style={{ width: `${summary.percent}%` }} /></div>
         <div className="grid grid-cols-3 gap-2 text-center text-xs sm:text-sm">
@@ -85,7 +86,7 @@ export default function DeckAssembly() {
 
       {Object.entries(groups).map(([category, categoryEntries]) => categoryEntries.length > 0 && <section key={category} className="space-y-2"><h2 className="px-1 text-sm font-bold uppercase tracking-wider text-text-muted">{t(`decks.${category}`)}</h2>{categoryEntries.map(entry => {
         const index = entries.findIndex(item => item.id === entry.id)
-        const max = Math.min(entry.required_quantity, entry.owned_quantity)
+        const max = Math.min(entry.required_quantity, entry.available_quantity ?? entry.owned_quantity)
         return <article key={entry.id} className="rounded-xl border border-border bg-bg-card p-4"><div className="flex items-center gap-3"><button type="button" className="min-w-0 flex-1 text-left" onClick={() => setViewerIndex(index)}><p className="font-semibold text-text-primary">{entry.required_quantity}x {entry.card?.name || entry.card_id}</p><p className="mt-1 text-xs text-text-muted">{t('decks.required')}: {entry.required_quantity} · {t('decks.ownedLabel')}: {entry.owned_quantity}{entry.shortage > 0 && <span className="text-brand-red"> · {t('decks.missingLabel')}: {entry.shortage}</span>}</p></button><div className="flex shrink-0 items-center gap-1" aria-label={`${entry.card?.name || entry.card_id} ${t('decks.pulled')}`}><button type="button" className="rounded-lg border border-border p-3 text-text-primary disabled:opacity-35" disabled={entry.pulled_quantity <= 0 || setProgress.isPending} onClick={() => updateEntry(entry, entry.pulled_quantity - 1)} aria-label={t('decks.decrementPulled')}><Minus size={18} /></button><button type="button" className="min-w-16 rounded-lg bg-bg-elevated px-2 py-3 text-sm font-bold text-text-primary" onClick={() => updateEntry(entry, max)} aria-label={t('decks.markAllPulled')}>{entry.pulled_quantity} / {entry.required_quantity}</button><button type="button" className="rounded-lg border border-border p-3 text-text-primary disabled:opacity-35" disabled={entry.pulled_quantity >= max || setProgress.isPending} onClick={() => updateEntry(entry, entry.pulled_quantity + 1)} aria-label={t('decks.incrementPulled')}><Plus size={18} /></button></div></div>{entry.shortage > 0 && <p className="mt-2 text-xs font-medium text-brand-red">{t('decks.pulledLimitedToOwned')}</p>}</article>
       })}</section>)}
 

@@ -293,6 +293,7 @@ class Deck(Base):
     target_size = Column(Integer, nullable=False, default=60)
     description = Column(Text, nullable=True)
     format = Column(String, nullable=False, default="Casual", server_default="Casual")
+    inventory_state = Column(String, nullable=False, default="planning", server_default="planning")
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -300,6 +301,7 @@ class Deck(Base):
 
     __table_args__ = (
         CheckConstraint("target_size IN (20, 40, 60)", name="ck_decks_target_size"),
+        CheckConstraint("inventory_state IN ('planning', 'reserved')", name="ck_decks_inventory_state"),
         Index("ix_decks_user_updated_at", "user_id", "updated_at"),
     )
 

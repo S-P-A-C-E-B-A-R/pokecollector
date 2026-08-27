@@ -26,6 +26,7 @@ const Decks = lazy(() => import('./pages/Decks'))
 const DeckEditor = lazy(() => import('./pages/DeckEditor'))
 const DeckCompare = lazy(() => import('./pages/DeckCompare'))
 const DeckAssembly = lazy(() => import('./pages/DeckAssembly'))
+const DeckInventory = lazy(() => import('./pages/DeckInventory'))
 const Analytics = lazy(() => import('./pages/Analytics'))
 const Products = lazy(() => import('./pages/Products'))
 const Trades = lazy(() => import('./pages/Trades'))
@@ -171,6 +172,7 @@ function ProtectedRoutes() {
         <Route path="binders" element={lazyRoute(<Binders />)} />
         <Route path="binders/:binderId" element={lazyRoute(<BinderDetail />)} />
         <Route path="decks" element={lazyRoute(<Decks />)} />
+        <Route path="decks/inventory" element={lazyRoute(<DeckInventory />)} />
         <Route path="decks/compare" element={lazyRoute(<DeckCompare />)} />
         <Route path="decks/:deckId" element={lazyRoute(<DeckEditor />)} />
         <Route path="decks/:deckId/build" element={lazyRoute(<DeckAssembly />)} />

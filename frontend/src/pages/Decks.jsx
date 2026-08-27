@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Copy, GitCompare, Layers3, Plus } from 'lucide-react'
+import { Copy, GitCompare, Layers3, PackageOpen, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { createDeck, duplicateDeck, getDecks } from '../api/client'
 import { useSettings } from '../contexts/SettingsContext'
@@ -37,7 +37,7 @@ export default function Decks() {
   return <div className="space-y-4 pb-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 className="text-xl font-bold text-text-primary">{t('decks.title')}</h1><p className="mt-1 text-sm text-text-secondary">{t('decks.subtitle')}</p></div>
-      <div className="flex gap-2"><button className="btn-secondary" disabled={decks.length < 2} onClick={() => navigate(`/decks/compare?left=${decks[0]?.id}&right=${decks[1]?.id}`)}><GitCompare size={16} /> Compare</button><button className="btn-primary" onClick={() => setCreating(value => !value)}><Plus size={16} /> {t('decks.newDeck')}</button></div>
+      <div className="flex gap-2"><button className="btn-secondary" onClick={() => navigate('/decks/inventory')}><PackageOpen size={16} /> Inventory Usage</button><button className="btn-secondary" disabled={decks.length < 2} onClick={() => navigate(`/decks/compare?left=${decks[0]?.id}&right=${decks[1]?.id}`)}><GitCompare size={16} /> Compare</button><button className="btn-primary" onClick={() => setCreating(value => !value)}><Plus size={16} /> {t('decks.newDeck')}</button></div>
     </div>
     {creating && <form onSubmit={submit} className="card grid gap-3 sm:grid-cols-2">
       <input className="input sm:col-span-2" autoFocus required value={name} onChange={event => setName(event.target.value)} placeholder={t('decks.name')} />
@@ -51,6 +51,7 @@ export default function Decks() {
         <button onClick={() => navigate(`/decks/${deck.id}`)} className="w-full text-left">
         <div className="flex items-start justify-between gap-2"><h2 className="truncate font-semibold text-text-primary">{deck.name}</h2><span className={`shrink-0 text-xs font-bold ${progress.status === 'complete' ? 'text-green' : progress.status === 'over' ? 'text-brand-red' : 'text-yellow'}`}>{progress.current}/{progress.target}</span></div>
         <DeckValidationPanel validation={deck.validation} t={t} compact />
+        <p className="mt-1 text-xs text-text-muted">{deck.inventory_state === 'reserved' ? 'Reserved' : 'Planning'}{deck.shared_missing_copy_count ? ` · Shared missing ${deck.shared_missing_copy_count}` : ''}</p>
         {deck.description && <p className="mt-1 line-clamp-2 text-xs text-text-muted">{deck.description}</p>}
         <p className="mt-2 text-xs text-text-secondary">{progress.status === 'complete' ? t('decks.complete') : progress.status === 'over' ? label('decks.over', { count: progress.over }) : label('decks.remaining', { count: progress.remaining })}{deck.missing_copy_count > 0 && ` · ${label('decks.missingCopies', { count: deck.missing_copy_count })}`}</p>
         <div className="mt-3"><DeckCompositionBar entries={[]} compositionCounts={deck.composition_counts} progress={progress} t={t} label={label} compact /></div>

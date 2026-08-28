@@ -184,6 +184,7 @@ export function CollectionCardDisplay({ item, card = item?.card ?? item, image, 
     <CardDisplay
       card={card}
       image={resolvedImage}
+      variantEffectSource={item}
       viewportRef={viewportRef}
       {...displayProps}
       overlay={(

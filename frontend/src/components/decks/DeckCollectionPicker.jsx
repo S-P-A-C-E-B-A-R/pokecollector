@@ -7,7 +7,8 @@ import DeckCollectionPreview from './DeckCollectionPreview'
 
 export default function DeckCollectionPicker({ collection, entries, onAdd, optimisticAddQuantities, pendingCardIds, t, label }) {
   const storageKey = 'pokecollector.deckEditor.ownedCardsCollapsed'
-  const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem(storageKey) === 'true')
+  // Older saved values use true for collapsed and false for expanded. Missing is now collapsed.
+  const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.localStorage.getItem(storageKey) !== 'false')
   const [search, setSearch] = useState('')
   const [type, setType] = useState('')
   const [set, setSet] = useState('')

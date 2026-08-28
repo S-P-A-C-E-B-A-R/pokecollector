@@ -259,7 +259,9 @@ def duplicate_deck(deck_id: int, current_user: User = Depends(get_current_user),
 @router.get("/allocation/export.csv")
 def export_allocation_csv(mode: str = Query("all", pattern="^(all|free|conflicts)$"), current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     decks = db.query(Deck).options(joinedload(Deck.entries)).filter(Deck.user_id == current_user.id).all()
-    owned = _owned_quantities(db, current_user.id, [item.card_id for deck in decks for item in deck.entries])
+    # Exports are ownership-driven: unreserved collection cards are free inventory too.
+    owned_card_ids = [card_id for card_id, in db.query(CollectionItem.card_id).filter(CollectionItem.user_id == current_user.id).distinct().all()]
+    owned = _owned_quantities(db, current_user.id, owned_card_ids)
     allocation = allocation_for_decks(decks, owned)
     cards = db.query(Card).filter(Card.id.in_(owned.keys())).all() if owned else []
     output = io.StringIO(newline="")

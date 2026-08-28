@@ -16,6 +16,7 @@ from services.deck_analysis import analyze_deck
 from services.deck_probability import analyze_deck_probability
 from services.deck_comparison import compare_decks
 from services.deck_allocation import allocation_for_decks
+from services.deck_display_variants import representative_display_variants
 from services.standard_legality import is_standard_regulation_mark
 
 router = APIRouter()
@@ -91,11 +92,12 @@ def _copy_limit_warnings(entries: list[DeckEntry]) -> list[dict]:
     return sorted(warnings, key=lambda warning: warning["name"].lower())
 
 
-def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, include_entries: bool = True, standard_legal_fingerprints: set[str] | None = None, allocation: dict | None = None) -> DeckResponse:
+def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, include_entries: bool = True, standard_legal_fingerprints: set[str] | None = None, allocation: dict | None = None, display_variants: dict | None = None) -> DeckResponse:
     entries = list(deck.entries) if include_entries else []
     if owned_quantities is None:
         owned_quantities = {}
     allocation = allocation or {}
+    display_variants = display_variants or {}
     current_card_count = sum(int(entry.required_quantity or 0) for entry in entries)
     composition_counts = {category: 0 for category in COMPOSITION_CATEGORIES}
     for entry in entries:
@@ -138,6 +140,7 @@ def _deck_response(deck: Deck, owned_quantities: dict[str, int] | None = None, i
                 "reserved_elsewhere": allocation.get(entry.card_id, {}).get("reserved_in_other_decks", 0),
                 "reserved_in_this_deck": int(entry.required_quantity or 0) if deck.inventory_state == "reserved" else 0,
                 "available_quantity": allocation.get(entry.card_id, {}).get("available_to_this_deck", owned_quantities.get(entry.card_id, 0)),
+                "display_variant": display_variants.get(entry.card_id),
                 "card": entry.card,
             }
             for entry in entries
@@ -296,7 +299,8 @@ def get_deck(deck_id: int, current_user: User = Depends(get_current_user), db: S
     all_decks = db.query(Deck).options(joinedload(Deck.entries)).filter(Deck.user_id == current_user.id).all()
     owned_quantities = _owned_quantities(db, current_user.id, [entry.card_id for item in all_decks for entry in item.entries])
     allocation = allocation_for_decks(all_decks, owned_quantities, deck.id)
-    return _deck_response(deck, owned_quantities, standard_legal_fingerprints=_standard_legal_fingerprints(db), allocation=allocation)
+    rows = db.query(CollectionItem).filter(CollectionItem.user_id == current_user.id, CollectionItem.card_id.in_([entry.card_id for entry in deck.entries])).all()
+    return _deck_response(deck, owned_quantities, standard_legal_fingerprints=_standard_legal_fingerprints(db), allocation=allocation, display_variants=representative_display_variants(rows))
 
 
 @router.get("/{deck_id}/probability")

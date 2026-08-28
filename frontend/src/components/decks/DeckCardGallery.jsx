@@ -16,7 +16,7 @@ export default function DeckCardGallery({ entries, onOpen, onQuantityChange, onR
             className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red"
             aria-label={label('decks.openCard', { name: entry.card?.name || entry.card_id })}
           >
-            <CollectionCardDisplay variant="artwork" item={{ card: entry.card }} card={entry.card} alt={entry.card?.name || entry.card_id} />
+            <CollectionCardDisplay variant="artwork" item={{ card: entry.card }} card={entry.card} variantEffectSource={entry.display_variant || entry.card} alt={entry.card?.name || entry.card_id} />
           </button>
           <span className="absolute left-2 top-2 rounded-full bg-black/80 px-2 py-0.5 text-xs font-black text-white shadow">x{entry.required_quantity}</span>
           {entry.shortage > 0 && <span className="absolute right-2 top-2 rounded-full bg-brand-red px-2 py-0.5 text-[10px] font-bold text-white shadow">{label('decks.shortage', { count: entry.shortage })}</span>}

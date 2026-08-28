@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Modal from '../ui/Modal'
-import CollectionCardImage from '../CollectionCardImage'
+import { CollectionCardDisplay } from '../CollectionCardImage'
 
 export default function DeckCardViewer({ entries, activeIndex, onClose, onPrevious, onNext, t, label }) {
   const entry = activeIndex === null ? null : entries[activeIndex]
@@ -25,7 +25,7 @@ export default function DeckCardViewer({ entries, activeIndex, onClose, onPrevio
     <Modal isOpen={Boolean(entry)} onClose={onClose} title={entry?.card?.name || ''} size="xl" mobileSheet={false} className="max-h-[95dvh]">
       {entry && <div className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_16rem] sm:p-6">
         <div className="relative mx-auto w-full max-w-md">
-          <CollectionCardImage item={{ card: entry.card }} alt={entry.card?.name || entry.card_id} size="large" className="w-full rounded-xl shadow-2xl" />
+          <CollectionCardDisplay variant="artwork" item={{ card: entry.card }} card={entry.card} variantEffectSource={entry.display_variant || entry.card} alt={entry.card?.name || entry.card_id} size="large" className="w-full rounded-xl shadow-2xl" />
           <button type="button" onClick={onPrevious} className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/75 p-3 text-white hover:bg-black" aria-label={t('decks.previousCard')}><ChevronLeft size={24} /></button>
           <button type="button" onClick={onNext} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/75 p-3 text-white hover:bg-black" aria-label={t('decks.nextCard')}><ChevronRight size={24} /></button>
         </div>

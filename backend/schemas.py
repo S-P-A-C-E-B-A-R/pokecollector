@@ -324,6 +324,7 @@ class DeckEntryResponse(BaseModel):
     reserved_elsewhere: int = 0
     reserved_in_this_deck: int = 0
     available_quantity: int = 0
+    display_variant: Optional[Dict[str, Any]] = None
     card: Optional[CardWithSet] = None
 
 
